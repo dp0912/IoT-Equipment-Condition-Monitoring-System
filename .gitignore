@@ -1,0 +1,55 @@
+
+# ==========================================
+# IoT Equipment Condition Monitoring System
+# Git Ignore Configuration
+# ==========================================
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# VS Code local settings
+.vscode/
+.idea/
+
+# Python environments and cache
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+secrets.h
+secrets.hpp
+credentials.json
+*service-account*.json
+*.pem
+*.key
+
+# Arduino / ESP32 build outputs
+build/
+*.bin
+*.elf
+*.map
+*.hex
+*.uf2
+
+# PlatformIO (if used later)
+.pio/
+
+# Local databases and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.swp
+*~

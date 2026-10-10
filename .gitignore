@@ -56,3 +56,4 @@ logs/
 
 # Local ESP32 credentials
 firmware/esp32/equipment_monitor/secrets.h
+

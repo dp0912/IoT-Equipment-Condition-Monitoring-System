@@ -5,8 +5,8 @@
     "name": "adq8c97",
     "namespace": "default",
     "uid": "12db40cf-2124-4df0-b7e3-182747c0afce",
-    "resourceVersion": "1791855978228007",
-    "generation": 45,
+    "resourceVersion": "1791933712730008",
+    "generation": 62,
     "creationTimestamp": "2026-10-12T20:20:12Z",
     "labels": {
       "grafana.app/deprecatedInternalID": "2056317783748608"
@@ -15,7 +15,7 @@
       "grafana.app/createdBy": "user:bg10j9sj3x3pcc",
       "grafana.app/saved-from-ui": "Grafana v13.2.3 (Homebrew)",
       "grafana.app/updatedBy": "user:bg10j9sj3x3pcc",
-      "grafana.app/updatedTimestamp": "2026-10-13T01:46:18Z"
+      "grafana.app/updatedTimestamp": "2026-10-13T23:21:52Z"
     }
   },
   "spec": {
@@ -185,6 +185,531 @@
                   }
                 },
                 "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-11": {
+        "kind": "Panel",
+        "spec": {
+          "id": 11,
+          "title": "Historical Sensor Trends — Azure",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "bg14x1bx9chdsb"
+                      },
+                      "spec": {
+                        "columns": [
+                          {
+                            "selector": "time",
+                            "text": "Time",
+                            "type": "timestamp"
+                          },
+                          {
+                            "selector": "temperature",
+                            "text": "Temperature",
+                            "type": "number"
+                          },
+                          {
+                            "selector": "humidity",
+                            "text": "humidity",
+                            "type": "number"
+                          },
+                          {
+                            "selector": "vibration",
+                            "text": "Vibration",
+                            "type": "number"
+                          }
+                        ],
+                        "filters": [],
+                        "format": "timeseries",
+                        "global_query_id": "",
+                        "parser": "backend",
+                        "root_selector": "",
+                        "source": "url",
+                        "type": "json",
+                        "url": "http://127.0.0.1:5001/api/history/summary?from=2026-10-11&to=2026-10-13&limit=500",
+                        "url_options": {
+                          "data": "",
+                          "method": "GET"
+                        }
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {
+                "timeFrom": "7d"
+              }
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.2.3",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "scope": "series",
+                      "options": "Temperature"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#ff6b6b",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "scope": "series",
+                      "options": "humidity"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#33bfff",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "scope": "series",
+                      "options": "Vibration"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#b388ff",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-12": {
+        "kind": "Panel",
+        "spec": {
+          "id": 12,
+          "title": "Historical Equipment Alerts — Azure",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "bg14x1bx9chdsb"
+                      },
+                      "spec": {
+                        "columns": [
+                          {
+                            "selector": "condition",
+                            "text": "Current",
+                            "type": "string"
+                          },
+                          {
+                            "selector": "previous_condition",
+                            "text": "Previous",
+                            "type": "string"
+                          },
+                          {
+                            "selector": "temperature",
+                            "text": "Temperature",
+                            "type": "number"
+                          },
+                          {
+                            "selector": "humidity",
+                            "text": "Humidity",
+                            "type": "number"
+                          },
+                          {
+                            "selector": "vibration",
+                            "text": "Vibration",
+                            "type": "number"
+                          }
+                        ],
+                        "filters": [],
+                        "format": "table",
+                        "global_query_id": "",
+                        "parser": "backend",
+                        "root_selector": "",
+                        "source": "url",
+                        "type": "json",
+                        "url": "http://127.0.0.1:5001/api/history/events?from=2026-10-11&to=2026-10-13&limit=500",
+                        "url_options": {
+                          "data": "",
+                          "method": "GET"
+                        }
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "device_id": false,
+                        "event_type": true,
+                        "previous_condition": false
+                      },
+                      "includeByName": {},
+                      "indexByName": {
+                        "condition": 1,
+                        "device_id": 2,
+                        "event_type": 4,
+                        "humidity": 6,
+                        "previous_condition": 3,
+                        "temperature": 5,
+                        "time": 0,
+                        "vibration": 7
+                      },
+                      "renameByName": {
+                        "condition": "Severity"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "sortBy",
+                  "spec": {
+                    "options": {
+                      "fields": {},
+                      "sort": [
+                        {
+                          "desc": true,
+                          "field": "time"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.2.3",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "scope": "series",
+                      "options": "event_type"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "auto"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "scope": "series",
+                      "options": "Severity"
+                    },
+                    "properties": [
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "options": {
+                              "CRITICAL": {
+                                "color": "red",
+                                "index": 2,
+                                "text": "🚨 CRITICAL"
+                              },
+                              "NORMAL": {
+                                "color": "#73BF69",
+                                "index": 0,
+                                "text": "✅ RECOVERY"
+                              },
+                              "WARNING": {
+                                "color": "orange",
+                                "index": 1,
+                                "text": "⚠️ WARNING"
+                              }
+                            },
+                            "type": "value"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-13": {
+        "kind": "Panel",
+        "spec": {
+          "id": 13,
+          "title": "AI/ML Anomaly Status",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-mqtt-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "eg11bmp8wr4lcc"
+                      },
+                      "spec": {
+                        "topic": "equipment/ESP32-001/ml"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "anomaly_score": false,
+                        "device_id": false,
+                        "features": true,
+                        "status": false,
+                        "time": true,
+                        "timestamp": true
+                      },
+                      "includeByName": {},
+                      "indexByName": {
+                        "Time": 4,
+                        "anomaly_score": 1,
+                        "device_id": 2,
+                        "features": 7,
+                        "model": 3,
+                        "status": 0,
+                        "time": 5,
+                        "timestamp": 6
+                      },
+                      "renameByName": {
+                        "Time": "Last Updated",
+                        "anomaly_score": "Anomaly Score",
+                        "device_id": "Device",
+                        "model": "Model",
+                        "status": "ML Status"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "marcusolsson-dynamictext-panel",
+            "version": "6.3.0",
+            "spec": {
+              "options": {
+                "afterRender": "",
+                "content": "{{#each data}}\n{{#if @last}}\n\n<div style=\"padding:16px 20px; color:#e5e7eb;\">\n\n  <!-- TOP ROW -->\n  <div style=\"display:grid; grid-template-columns:1fr 1fr; gap:20px; padding-bottom:20px;\">\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:13px;\">ML Status</div>\n\n      {{#if (eq (lookup this \"ML Status\") \"ANOMALY\")}}\n      <div style=\"color:#ff6b6b; font-size:30px; font-weight:700;\">\n        ANOMALY\n      </div>\n      {{else}}\n      <div style=\"color:#4ade80; font-size:30px; font-weight:700;\">\n        {{lookup this \"ML Status\"}}\n      </div>\n      {{/if}}\n    </div>\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:13px;\">Anomaly Score</div>\n\n      {{#if (eq (lookup this \"ML Status\") \"ANOMALY\")}}\n      <div style=\"color:#ff6b6b; font-size:30px; font-weight:700;\">\n        {{lookup this \"Anomaly Score\"}}\n      </div>\n      {{else}}\n      <div style=\"color:#4ade80; font-size:30px; font-weight:700;\">\n        {{lookup this \"Anomaly Score\"}}\n      </div>\n      {{/if}}\n    </div>\n\n  </div>\n\n  <div style=\"height:1px; background:#374151; margin-bottom:18px;\"></div>\n\n  <!-- BOTTOM ROW -->\n  <div style=\"display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px;\">\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:12px;\">Device</div>\n      <div style=\"font-size:14px; font-weight:500; color:#e5e7eb;\">\n        {{lookup this \"Device\"}}\n      </div>\n    </div>\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:12px;\">Model</div>\n      <div style=\"font-size:14px; font-weight:500; color:#e5e7eb;\">\n        {{lookup this \"Model\"}}\n      </div>\n    </div>\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:12px;\">Last Updated</div>\n      <div style=\"font-size:14px; font-weight:500; color:#e5e7eb;\">\n        {{date (lookup this \"Last Updated\") \"HH:mm:ss\"}}\n      </div>\n    </div>\n\n  </div>\n</div>\n\n{{/if}}\n{{/each}}",
+                "contentPartials": [],
+                "defaultContent": "The query didn't return any results.",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [],
+                "externalStyles": [],
+                "helpers": "",
+                "renderMode": "allRows",
+                "styles": "",
+                "wrap": false
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "scope": "series",
+                      "options": "Last Updated"
+                    },
+                    "properties": []
+                  }
+                ]
               }
             }
           }
@@ -1284,7 +1809,7 @@
             "spec": {
               "x": 0,
               "y": 0,
-              "width": 19,
+              "width": 18,
               "height": 3,
               "element": {
                 "kind": "ElementReference",
@@ -1295,9 +1820,9 @@
           {
             "kind": "GridLayoutItem",
             "spec": {
-              "x": 19,
+              "x": 18,
               "y": 0,
-              "width": 5,
+              "width": 6,
               "height": 3,
               "element": {
                 "kind": "ElementReference",
@@ -1406,6 +1931,45 @@
               "element": {
                 "kind": "ElementReference",
                 "name": "panel-10"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 22,
+              "width": 24,
+              "height": 9,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-11"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 31,
+              "width": 12,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-12"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 31,
+              "width": 12,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-13"
               }
             }
           }

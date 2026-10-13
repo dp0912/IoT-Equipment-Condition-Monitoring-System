@@ -12,6 +12,7 @@ PURPOSE:
     Also publish live dashboard messages:
     4. Equipment condition-change alerts.
     5. Online/offline connectivity status.
+    6. Isolation Forest NORMAL/ANOMALY predictions every 30 seconds.
 
 DATA FLOW:
     ESP32 -> Mosquitto MQTT -> Python Subscriber
@@ -83,6 +84,13 @@ from storage import save_event, save_summary
 # Import our tested 30-second statistics calculator.
 from telemetry_aggregator import TelemetryAggregator
 
+# Load the local inference module, without changing ESP32 logic.
+sys.path.insert(0, str(PROJECT_ROOT / "ml" / "inference"))
+from predict_anomaly import AnomalyDetector
+
+# Load once at startup, not for every incoming MQTT reading.
+anomaly_detector = AnomalyDetector()
+
 # Preserve the optional Log Analytics integration.
 from log_analytics import (
     LOG_ANALYTICS_ENABLED,
@@ -116,6 +124,9 @@ STATUS_TOPIC = "equipment/ESP32-001/status"
 # Dashboard-only topics; do not overwrite the ESP32 status topic.
 LIVE_ALERT_TOPIC = "equipment/ESP32-001/alerts"
 LIVE_CONNECTIVITY_TOPIC = "equipment/ESP32-001/connectivity"
+
+# New dashboard topic: independent of all existing ESP32/status topics.
+LIVE_ML_TOPIC = "equipment/ESP32-001/ml"
 
 # If valid telemetry stops for 10 seconds, mark device offline.
 OFFLINE_TIMEOUT_SECONDS = 10
@@ -507,6 +518,54 @@ def publish_live_alert(client, device_id, old_condition, data):
 
 
 # ============================================================
+# AI/ML: Publish an independent prediction for a completed window.
+# ============================================================
+
+def publish_ml_prediction(client, summary):
+    """Run Isolation Forest on a full 30-second summary and publish to MQTT.
+
+    A failed ML inference must not interrupt existing SUMMARY uploads,
+    alerts, or live connectivity monitoring.
+    """
+    try:
+        prediction = anomaly_detector.predict(summary)
+    except Exception as error:
+        print(f"[ML ERROR] Prediction failed: {type(error).__name__}: {error}")
+        return
+
+    if prediction is None:
+        print("[ML] Skipping prediction: summary contains missing/invalid measurements")
+        return
+
+    # Use both Grafana-friendly names and the complete sensor feature values.
+    payload = {
+        "device_id": prediction["device_id"],
+        "time": prediction["recorded_at"],
+        "timestamp": prediction["recorded_at"],
+        "status": prediction["status"],
+        "anomaly_score": prediction["anomaly_score"],
+        "model": prediction["model"],
+        "features": prediction["features"],
+    }
+
+    result = client.publish(
+        LIVE_ML_TOPIC,
+        json.dumps(payload),
+        qos=1,
+        retain=True,
+    )
+
+    if result.rc == mqtt.MQTT_ERR_SUCCESS:
+        print(
+            f"[ML] {prediction['device_id']} | "
+            f"{prediction['status']} | "
+            f"Anomaly score: {prediction['anomaly_score']:.6f}"
+        )
+    else:
+        print(f"[ML ERROR] MQTT publish failed: {result.rc}")
+
+
+# ============================================================
 # STEP 9: Publish live connectivity for Grafana.
 # ============================================================
 
@@ -818,6 +877,10 @@ def on_message(client, userdata, message):
             data=summary,
         )
 
+        # Predict on exactly the same completed window used for training.
+        # Separate ML behavior from rule-based WARNING/CRITICAL logic.
+        publish_ml_prediction(client, summary)
+
         print(
             f"[SUMMARY] {device_id} | "
             f"Samples: {summary['sample_count']} | "
@@ -900,6 +963,8 @@ def main():
         "[AZURE TABLE] "
         "30-second SUMMARY + condition-change EVENT mode"
     )
+
+    print(f"[ML] Isolation Forest enabled | MQTT topic: {LIVE_ML_TOPIC}")
 
     print(
         "[LOG ANALYTICS] "

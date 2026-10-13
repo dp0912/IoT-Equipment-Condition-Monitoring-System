@@ -9,12 +9,21 @@ PURPOSE:
     2. An EVENT immediately when equipment condition changes.
     3. Optional Azure Log Analytics telemetry.
 
+    Also publish live dashboard messages:
+    4. Equipment condition-change alerts.
+    5. Online/offline connectivity status.
+
 DATA FLOW:
     ESP32 -> Mosquitto MQTT -> Python Subscriber
                                   |
                                   +-> Azure Table Storage
-                                      - SUMMARY records
-                                      - EVENT records
+                                  |   - SUMMARY records
+                                  |   - EVENT records
+                                  |
+                                  +-> Azure Log Analytics (optional)
+                                  |
+                                  +-> Live MQTT Alerts
+                                  +-> Live MQTT Connectivity
 
 IMPORTANT:
     FastAPI is NOT required.
@@ -35,6 +44,7 @@ import json
 import math
 import os
 import sys
+import threading
 import time
 
 from collections import deque
@@ -102,6 +112,23 @@ MQTT_USERNAME = "esp32_monitor"
 TELEMETRY_TOPIC = "equipment/ESP32-001/telemetry"
 
 STATUS_TOPIC = "equipment/ESP32-001/status"
+
+# Dashboard-only topics; do not overwrite the ESP32 status topic.
+LIVE_ALERT_TOPIC = "equipment/ESP32-001/alerts"
+LIVE_CONNECTIVITY_TOPIC = "equipment/ESP32-001/connectivity"
+
+# If valid telemetry stops for 10 seconds, mark device offline.
+OFFLINE_TIMEOUT_SECONDS = 10
+
+# Publish connectivity snapshots approximately every 2 seconds.
+CONNECTIVITY_CHECK_SECONDS = 2
+
+# Track when the last valid telemetry message was received.
+last_telemetry_monotonic = None
+last_telemetry_wall_time = None
+
+# Protect shared timestamps accessed by two threads.
+connectivity_lock = threading.Lock()
 
 
 # ============================================================
@@ -415,7 +442,168 @@ def maybe_upload_logs(data, now):
 
 
 # ============================================================
-# STEP 8: Handle MQTT connection and reconnection.
+# STEP 8: Publish live Grafana alerts.
+# ============================================================
+
+def publish_live_alert(client, device_id, old_condition, data):
+    """
+    Publish one MQTT alert when the equipment condition changes.
+
+    This is separate from Azure Table Storage event saving.
+
+    Example:
+        NORMAL -> WARNING
+        WARNING -> CRITICAL
+        CRITICAL -> NORMAL
+
+    The alert is NOT retained by MQTT.
+    """
+
+    severity = data["condition"]
+
+    event = {
+        "device_id": device_id,
+        "timestamp": (
+            datetime.now()
+            .astimezone()
+            .isoformat(timespec="seconds")
+        ),
+        "previous_condition": old_condition,
+        "condition": severity,
+        "severity": (
+            "RECOVERY"
+            if severity == "NORMAL"
+            else severity
+        ),
+        "message": (
+            f"Equipment condition changed: "
+            f"{old_condition} -> {severity}"
+        ),
+        "temperature": data["temperature"],
+        "humidity": data["humidity"],
+        "vibration": data["vibration"],
+    }
+
+    result = client.publish(
+        LIVE_ALERT_TOPIC,
+        json.dumps(event),
+        qos=0,
+        retain=False
+    )
+
+    if result.rc != mqtt.MQTT_ERR_SUCCESS:
+
+        print(
+            f"[LIVE ALERT ERROR] "
+            f"Publish failed: {result.rc}"
+        )
+
+    else:
+
+        print(
+            f"[LIVE ALERT] "
+            f"{old_condition} -> {severity}"
+        )
+
+
+# ============================================================
+# STEP 9: Publish live connectivity for Grafana.
+# ============================================================
+
+def connectivity_worker(client, stop_event):
+    """
+    Publish retained connectivity snapshots every 2 seconds.
+
+    ONLINE:
+        Valid ESP32 telemetry was received within 10 seconds.
+
+    OFFLINE:
+        No valid ESP32 telemetry received within 10 seconds.
+
+    UNKNOWN:
+        The Python subscriber disconnected unexpectedly.
+        This is handled by the MQTT Last Will message.
+
+    This worker runs independently from the telemetry callback.
+    """
+
+    previous_state = None
+
+    while not stop_event.is_set():
+
+        # Read the last telemetry timestamp safely.
+        with connectivity_lock:
+
+            seen_at = last_telemetry_monotonic
+
+            seen_wall = last_telemetry_wall_time
+
+        # Calculate time since the last valid message.
+        age = (
+            None
+            if seen_at is None
+            else max(
+                0,
+                time.monotonic() - seen_at
+            )
+        )
+
+        online = (
+            age is not None
+            and age <= OFFLINE_TIMEOUT_SECONDS
+        )
+
+        state = (
+            "ONLINE"
+            if online
+            else "OFFLINE"
+        )
+
+        payload = {
+            "device_id": "ESP32-001",
+            "status": state,
+            "online": online,
+            "last_seen": seen_wall,
+            "seconds_since_last_message": (
+                round(age, 1)
+                if age is not None
+                else None
+            ),
+            "checked_at": (
+                datetime.now()
+                .astimezone()
+                .isoformat(timespec="seconds")
+            ),
+        }
+
+        # Retain the latest status for new Grafana subscribers.
+        result = client.publish(
+            LIVE_CONNECTIVITY_TOPIC,
+            json.dumps(payload),
+            qos=1,
+            retain=True
+        )
+
+        # Print only when the state changes.
+        if (
+            result.rc == mqtt.MQTT_ERR_SUCCESS
+            and state != previous_state
+        ):
+
+            print(
+                f"[CONNECTIVITY] {state}"
+            )
+
+            previous_state = state
+
+        # Wait without blocking the main MQTT thread.
+        stop_event.wait(
+            CONNECTIVITY_CHECK_SECONDS
+        )
+
+
+# ============================================================
+# STEP 10: Handle MQTT connection and reconnection.
 # ============================================================
 
 def on_connect(
@@ -455,7 +643,7 @@ def on_connect(
 
 
 # ============================================================
-# STEP 9: Process incoming MQTT messages.
+# STEP 11: Process incoming MQTT messages.
 # ============================================================
 
 def on_message(client, userdata, message):
@@ -467,9 +655,10 @@ def on_message(client, userdata, message):
         2. Decode and validate sensor telemetry.
         3. Print actual sensor readings.
         4. Detect equipment condition transitions.
-        5. Add every reading to the statistics calculator.
-        6. Upload completed summaries and events to Azure.
-        7. Optionally upload to Log Analytics.
+        5. Publish live condition-change alerts.
+        6. Add readings to the statistics calculator.
+        7. Upload completed summaries and events to Azure.
+        8. Optionally upload to Log Analytics.
     """
 
     # Create a readable local timestamp.
@@ -486,7 +675,7 @@ def on_message(client, userdata, message):
     )
 
     # --------------------------------------------------------
-    # STEP 9A: Handle device connectivity messages.
+    # STEP 11A: Handle device connectivity messages.
     # --------------------------------------------------------
 
     if message.topic == STATUS_TOPIC:
@@ -503,7 +692,7 @@ def on_message(client, userdata, message):
         return
 
     # --------------------------------------------------------
-    # STEP 9B: Validate sensor telemetry.
+    # STEP 11B: Validate sensor telemetry.
     # --------------------------------------------------------
 
     try:
@@ -535,12 +724,24 @@ def on_message(client, userdata, message):
     # Use monotonic time for reliable interval tracking.
     now = time.monotonic()
 
-    device_id = str(data["device_id"])
+    # Update last-seen timestamps only for valid telemetry.
+    global last_telemetry_monotonic
+    global last_telemetry_wall_time
+
+    with connectivity_lock:
+
+        last_telemetry_monotonic = now
+
+        last_telemetry_wall_time = timestamp
+
+    device_id = str(
+        data["device_id"]
+    )
 
     condition = data["condition"]
 
     # --------------------------------------------------------
-    # STEP 9C: Print live sensor readings.
+    # STEP 11C: Print live sensor readings.
     # --------------------------------------------------------
 
     print(
@@ -552,7 +753,7 @@ def on_message(client, userdata, message):
     )
 
     # --------------------------------------------------------
-    # STEP 9D: Detect equipment condition changes.
+    # STEP 11D: Detect equipment condition changes.
     # --------------------------------------------------------
 
     previous_condition = last_seen_condition.get(
@@ -578,11 +779,19 @@ def on_message(client, userdata, message):
             f"{previous_condition} -> {condition}"
         )
 
+        # Send the event immediately to Grafana via MQTT.
+        publish_live_alert(
+            client,
+            device_id,
+            previous_condition,
+            data
+        )
+
     # Update condition tracking after processing transition.
     last_seen_condition[device_id] = condition
 
     # --------------------------------------------------------
-    # STEP 9E: Aggregate every valid MQTT reading.
+    # STEP 11E: Aggregate every valid MQTT reading.
     # --------------------------------------------------------
 
     # Create an aggregator for a device when first seen.
@@ -596,9 +805,6 @@ def on_message(client, userdata, message):
     aggregator = aggregators[device_id]
 
     # Add this reading to the current window.
-    #
-    # If 30 seconds have elapsed, this returns the
-    # completed summary for the previous window.
     summary = aggregator.add_reading(
         data,
         now,
@@ -622,13 +828,13 @@ def on_message(client, userdata, message):
         )
 
     # --------------------------------------------------------
-    # STEP 9F: Upload queued records to Azure Table Storage.
+    # STEP 11F: Upload queued records to Azure Table Storage.
     # --------------------------------------------------------
 
     flush_pending_writes()
 
     # --------------------------------------------------------
-    # STEP 9G: Optional Azure Log Analytics upload.
+    # STEP 11G: Optional Azure Log Analytics upload.
     # --------------------------------------------------------
 
     maybe_upload_logs(
@@ -638,7 +844,7 @@ def on_message(client, userdata, message):
 
 
 # ============================================================
-# STEP 10: Start the MQTT subscriber.
+# STEP 12: Start the MQTT subscriber.
 # ============================================================
 
 def main():
@@ -668,6 +874,19 @@ def main():
         password,
     )
 
+    # If the subscriber disconnects unexpectedly,
+    # publish UNKNOWN as its MQTT Last Will message.
+    client.will_set(
+        LIVE_CONNECTIVITY_TOPIC,
+        json.dumps({
+            "device_id": "ESP32-001",
+            "status": "UNKNOWN",
+            "online": False,
+        }),
+        qos=1,
+        retain=True,
+    )
+
     # Register MQTT callback functions.
     client.on_connect = on_connect
     client.on_message = on_message
@@ -691,6 +910,10 @@ def main():
         )
     )
 
+    stop_event = threading.Event()
+
+    connectivity_thread = None
+
     try:
 
         # Connect to Mosquitto.
@@ -700,8 +923,21 @@ def main():
             keepalive=60,
         )
 
-        # Receive MQTT messages continuously.
-        client.loop_forever()
+        # Run MQTT networking in the background.
+        client.loop_start()
+
+        # Start independent connectivity monitoring.
+        connectivity_thread = threading.Thread(
+            target=connectivity_worker,
+            args=(client, stop_event),
+            daemon=True,
+        )
+
+        connectivity_thread.start()
+
+        # Keep the program running until Ctrl+C.
+        while True:
+            time.sleep(1)
 
     except KeyboardInterrupt:
 
@@ -717,6 +953,20 @@ def main():
 
     finally:
 
+        # Stop connectivity monitoring.
+        stop_event.set()
+
+        if connectivity_thread is not None:
+
+            connectivity_thread.join(
+                timeout=3
+            )
+
+        # Disconnect cleanly.
+        client.disconnect()
+
+        client.loop_stop()
+
         # Warn if unsaved Azure records remain in memory.
         if pending_writes:
 
@@ -726,12 +976,9 @@ def main():
                 "remain in memory"
             )
 
-        # Disconnect cleanly.
-        client.disconnect()
-
 
 # ============================================================
-# STEP 11: Program entry point.
+# STEP 13: Program entry point.
 # ============================================================
 
 if __name__ == "__main__":

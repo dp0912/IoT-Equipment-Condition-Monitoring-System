@@ -10,6 +10,7 @@ import os
 import queue
 import smtplib
 import ssl
+import certifi
 import threading
 import time
 from datetime import datetime, timezone
@@ -44,7 +45,9 @@ def _send_email(subject, body):
     # Never fall back to an unencrypted login.
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
         server.ehlo()
-        server.starttls(context=ssl.create_default_context())
+        server.starttls(
+             context=ssl.create_default_context(cafile=certifi.where())
+        )
         server.ehlo()
         server.login(SMTP_USER, SMTP_APP_PASSWORD)
         server.send_message(msg)

@@ -107,10 +107,10 @@ def retrieve_records(record_type):
         )
 
         limit = int(
-            request.args.get("limit", "500")
+            request.args.get("limit", "25000")
         )
 
-        if not 1 <= limit <= 500:
+        if not 1 <= limit <= 25000:
             raise ValueError("Invalid limit")
 
         if (
@@ -125,7 +125,7 @@ def retrieve_records(record_type):
         return jsonify({
             "error": (
                 "Use YYYY-MM-DD dates, a valid date "
-                "range, and a limit between 1 and 500."
+                "range, and a limit between 1 and 25000."
             )
         }), 400
 

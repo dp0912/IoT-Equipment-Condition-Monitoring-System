@@ -5,8 +5,8 @@
     "name": "adq8c97",
     "namespace": "default",
     "uid": "12db40cf-2124-4df0-b7e3-182747c0afce",
-    "resourceVersion": "1791933712730008",
-    "generation": 62,
+    "resourceVersion": "1791946644019997",
+    "generation": 72,
     "creationTimestamp": "2026-10-12T20:20:12Z",
     "labels": {
       "grafana.app/deprecatedInternalID": "2056317783748608"
@@ -15,7 +15,7 @@
       "grafana.app/createdBy": "user:bg10j9sj3x3pcc",
       "grafana.app/saved-from-ui": "Grafana v13.2.3 (Homebrew)",
       "grafana.app/updatedBy": "user:bg10j9sj3x3pcc",
-      "grafana.app/updatedTimestamp": "2026-10-13T23:21:52Z"
+      "grafana.app/updatedTimestamp": "2026-10-14T02:57:24Z"
     }
   },
   "spec": {
@@ -241,7 +241,7 @@
                         "root_selector": "",
                         "source": "url",
                         "type": "json",
-                        "url": "http://127.0.0.1:5001/api/history/summary?from=2026-10-11&to=2026-10-13&limit=500",
+                        "url": "http://127.0.0.1:5001/api/history/summary?from=${__from:date:YYYY-MM-DD}&to=${__to:date:YYYY-MM-DD}&limit=25000",
                         "url_options": {
                           "data": "",
                           "method": "GET"
@@ -432,6 +432,11 @@
                             "selector": "vibration",
                             "text": "Vibration",
                             "type": "number"
+                          },
+                          {
+                            "selector": "time",
+                            "text": "Time",
+                            "type": "timestamp"
                           }
                         ],
                         "filters": [],
@@ -441,7 +446,7 @@
                         "root_selector": "",
                         "source": "url",
                         "type": "json",
-                        "url": "http://127.0.0.1:5001/api/history/events?from=2026-10-11&to=2026-10-13&limit=500",
+                        "url": "http://127.0.0.1:5001/api/history/events?from=${__from:date:YYYY-MM-DD}&to=${__to:date:YYYY-MM-DD}&limit=500",
                         "url_options": {
                           "data": "",
                           "method": "GET"
@@ -466,14 +471,12 @@
                       },
                       "includeByName": {},
                       "indexByName": {
-                        "condition": 1,
-                        "device_id": 2,
-                        "event_type": 4,
-                        "humidity": 6,
-                        "previous_condition": 3,
-                        "temperature": 5,
-                        "time": 0,
-                        "vibration": 7
+                        "Current": 1,
+                        "Humidity": 4,
+                        "Previous": 2,
+                        "Temperature": 3,
+                        "Time": 0,
+                        "Vibration": 5
                       },
                       "renameByName": {
                         "condition": "Severity"
@@ -490,14 +493,16 @@
                       "sort": [
                         {
                           "desc": true,
-                          "field": "time"
+                          "field": "Time"
                         }
                       ]
                     }
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "7d"
+              }
             }
           },
           "vizConfig": {
@@ -511,6 +516,28 @@
               },
               "fieldConfig": {
                 "defaults": {
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "CRITICAL": {
+                          "text": "🔴 CRITICAL",
+                          "color": "red",
+                          "index": 2
+                        },
+                        "NORMAL": {
+                          "text": "🟢 NORMAL",
+                          "color": "green",
+                          "index": 0
+                        },
+                        "WARNING": {
+                          "text": "🟡 WARNING",
+                          "color": "yellow",
+                          "index": 1
+                        }
+                      }
+                    }
+                  ],
                   "thresholds": {
                     "mode": "absolute",
                     "steps": [
@@ -538,57 +565,7 @@
                     "inspect": false
                   }
                 },
-                "overrides": [
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "scope": "series",
-                      "options": "event_type"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.cellOptions",
-                        "value": {
-                          "type": "auto"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "scope": "series",
-                      "options": "Severity"
-                    },
-                    "properties": [
-                      {
-                        "id": "mappings",
-                        "value": [
-                          {
-                            "options": {
-                              "CRITICAL": {
-                                "color": "red",
-                                "index": 2,
-                                "text": "🚨 CRITICAL"
-                              },
-                              "NORMAL": {
-                                "color": "#73BF69",
-                                "index": 0,
-                                "text": "✅ RECOVERY"
-                              },
-                              "WARNING": {
-                                "color": "orange",
-                                "index": 1,
-                                "text": "⚠️ WARNING"
-                              }
-                            },
-                            "type": "value"
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
+                "overrides": []
               }
             }
           }

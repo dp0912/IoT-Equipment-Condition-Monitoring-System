@@ -13,6 +13,7 @@ PURPOSE:
     4. Equipment condition-change alerts.
     5. Online/offline connectivity status.
     6. Isolation Forest NORMAL/ANOMALY predictions every 30 seconds.
+    7. Email notifications for WARNING, CRITICAL, RECOVERY, OFFLINE, ONLINE.
 
 DATA FLOW:
     ESP32 -> Mosquitto MQTT -> Python Subscriber
@@ -83,6 +84,15 @@ from storage import save_event, save_summary
 
 # Import our tested 30-second statistics calculator.
 from telemetry_aggregator import TelemetryAggregator
+
+# Email notifications run on a background worker; MQTT callbacks never wait
+# for Gmail. The module reads credentials from the ignored .env file.
+sys.path.insert(0, str(PROJECT_ROOT / "backend" / "notifications"))
+from email_notifier import (
+    start_email_worker,
+    send_equipment_alert,
+    send_connectivity_alert,
+)
 
 # Load the local inference module, without changing ESP32 logic.
 sys.path.insert(0, str(PROJECT_ROOT / "ml" / "inference"))
@@ -587,6 +597,7 @@ def connectivity_worker(client, stop_event):
     """
 
     previous_state = None
+    has_been_online = False
 
     while not stop_event.is_set():
 
@@ -652,6 +663,26 @@ def connectivity_worker(client, stop_event):
             print(
                 f"[CONNECTIVITY] {state}"
             )
+
+            # Ignore the initial UNKNOWN/OFFLINE state at startup.
+            # Notify only after real valid telemetry has been observed.
+            # ONLINE email is a reconnection alert, not a startup alert.
+            if seen_at is not None:
+                if state == "OFFLINE" and previous_state == "ONLINE":
+                    send_connectivity_alert(
+                        device_id="ESP32-001",
+                        status="OFFLINE",
+                        timestamp=payload["checked_at"],
+                    )
+                elif state == "ONLINE" and previous_state == "OFFLINE" and has_been_online:
+                    send_connectivity_alert(
+                        device_id="ESP32-001",
+                        status="ONLINE",
+                        timestamp=payload["checked_at"],
+                    )
+
+            if state == "ONLINE":
+                has_been_online = True
 
             previous_state = state
 
@@ -846,6 +877,18 @@ def on_message(client, userdata, message):
             data
         )
 
+        # Queue one non-blocking email per real condition transition.
+        # Rule-based classification is independent from ML predictions.
+        send_equipment_alert(
+            device_id=device_id,
+            severity="RECOVERY" if condition == "NORMAL" else condition,
+            previous_condition=previous_condition,
+            temperature=data["temperature"],
+            humidity=data["humidity"],
+            vibration=data["vibration"],
+            timestamp=timestamp,
+        )
+
     # Update condition tracking after processing transition.
     last_seen_condition[device_id] = condition
 
@@ -974,6 +1017,9 @@ def main():
             else "DISABLED - no log ingestion"
         )
     )
+
+    # Start the non-blocking email worker before receiving MQTT events.
+    start_email_worker()
 
     stop_event = threading.Event()
 

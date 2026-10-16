@@ -88,7 +88,6 @@ The Grafana dashboard provides both **real-time equipment monitoring** and **his
 
 **Dashboard configuration:** [Grafana Dashboard JSON](dashboard/grafana/iot-equipment-live-dashboard.json)
 
-**Original dashboard evidence:** [Real Grafana Screenshot](dashboard/screenshot/live-dashboard.png)
 
 > The showcase image is a presentation visualization based on the working dashboard. The original screenshot and exported Grafana JSON provide evidence of the actual implementation.
 

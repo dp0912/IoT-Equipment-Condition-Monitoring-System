@@ -1,959 +1,1118 @@
 
 /*
- * IoT-Based Configurable Multi-Sensor Equipment Condition Monitoring System
- * ESP32 Dev Module | Serial Monitor: 115200 baud
+ * SOFE 4610U — IoT Equipment Condition Monitoring
+ * Monitoring-only rebuild
+ *
+ * Board: ESP32-WROOM-32 DevKit
+ * Arduino IDE board: ESP32 Dev Module
  *
  * Hardware:
- * DHT11 GPIO27
- * MPU6500 SDA21, SCL22
- * LEDs GREEN25, YELLOW26, RED33
- * Buzzer GPIO23
- * IR receiver GPIO32
- * Physical STOP button GPIO13
- * L293D EN4, IN1 GPIO2, IN2 GPIO15
- * 74HC595 SER18, SRCLK19, RCLK5
- * LCD1602 via shift register
+ * DHT11: GPIO27
+ * MPU6050/MPU6500: SDA21, SCL22
+ * Green LED: GPIO25
+ * Yellow LED: GPIO26
+ * Red LED: GPIO33
+ * Button: GPIO13 to GND
+ * Active buzzer: GPIO23
  *
- * Networking:
- * ESP32 -> Wi-Fi -> Mosquitto on Mac
- * MQTT credentials are stored privately in secrets.h.
+ * CRITICAL buzzer: 200 ms ON / 800 ms OFF
+ * Physical button acknowledges and silences the alarm.
  *
- * IMPORTANT:
- * This is demonstration firmware, NOT a safety-rated controller.
- * Software STOP does not guarantee electrical isolation.
- * Disconnect external motor power during initial testing.
+ * No physical motor, LCD, remote or sound sensor.
+ *
+ * Educational demonstration, not a safety-certified system.
  */
 
 #include <Arduino.h>
 #include <Wire.h>
 #include <DHT.h>
-#include <IRremote.hpp>
-#include <Preferences.h>
-#include <math.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <Preferences.h>
+#include <math.h>
+#include <time.h>
 #include "secrets.h"
 
 // ============================================================
-// 1. MQTT CONFIGURATION
+// 1. HARDWARE
 // ============================================================
 
-// MQTT topics used by the project.
-constexpr const char *DEVICE_ID = "ESP32-001";
-constexpr const char *TOPIC_TELEMETRY =
+constexpr int PIN_DHT = 27;
+constexpr int PIN_SDA = 21;
+constexpr int PIN_SCL = 22;
+
+constexpr int PIN_GREEN = 25;
+constexpr int PIN_YELLOW = 26;
+constexpr int PIN_RED = 33;
+
+constexpr int PIN_BUTTON = 13;
+constexpr int PIN_BUZZER = 23;
+
+// Requires a GPIO-compatible active buzzer or suitable driver.
+constexpr bool BUZZER_ENABLED = true;
+
+constexpr unsigned long BUZZER_ON_MS = 200;
+constexpr unsigned long BUZZER_PERIOD_MS = 1000;
+
+DHT dht(PIN_DHT, DHT11);
+
+// ============================================================
+// 2. MQTT
+// ============================================================
+
+constexpr char DEVICE_ID[] = "ESP32-001";
+
+constexpr char TOPIC_TELEMETRY[] =
     "equipment/ESP32-001/telemetry";
-constexpr const char *TOPIC_STATUS =
+
+constexpr char TOPIC_STATUS[] =
     "equipment/ESP32-001/status";
 
-// How frequently to retry network connections.
-constexpr uint32_t WIFI_RETRY_MS = 10000;
-constexpr uint32_t MQTT_RETRY_MS = 5000;
-constexpr uint32_t STATUS_INTERVAL_MS = 15000;
+constexpr char TOPIC_CONFIG[] =
+    "equipment/ESP32-001/config";
 
-// WiFiClient provides TCP transport.
-// PubSubClient implements the MQTT protocol.
-WiFiClient wifiTransport;
-PubSubClient mqtt(wifiTransport);
+constexpr char TOPIC_HEALTH[] =
+    "equipment/ESP32-001/sensor_health";
 
-uint32_t lastWifiAttempt = 0;
-uint32_t lastMqttAttempt = 0;
-uint32_t lastStatusPublish = 0;
+constexpr char TOPIC_CONTROL[] =
+    "equipment/ESP32-001/control_status";
 
-bool wifiAttempted = false;
-bool mqttAttempted = false;
+constexpr char TOPIC_COMMAND[] =
+    "equipment/ESP32-001/commands";
 
-// Network function declarations.
-void startNetwork();
-void serviceNetwork();
-void publishTelemetry();
-void publishDeviceStatus();
+constexpr char TOPIC_ACK[] =
+    "equipment/ESP32-001/command_ack";
 
-// ============================================================
-// 2. GPIO PIN DEFINITIONS
-// ============================================================
+WiFiClient wifiClient;
+PubSubClient mqtt(wifiClient);
 
-constexpr int DHT_PIN = 27;
-constexpr int SDA_PIN = 21;
-constexpr int SCL_PIN = 22;
-
-constexpr int GREEN = 25;
-constexpr int YELLOW = 26;
-constexpr int RED = 33;
-constexpr int BUZZER = 23;
-
-constexpr int IR_PIN = 32;
-constexpr int BUTTON = 13;
-
-constexpr int MOTOR_EN = 4;
-constexpr int MOTOR_IN1 = 2;
-constexpr int MOTOR_IN2 = 15;
-
-constexpr int SR_DATA = 18;
-constexpr int SR_CLOCK = 19;
-constexpr int SR_LATCH = 5;
-
-constexpr uint8_t LCD_RS = 1 << 4;
-constexpr uint8_t LCD_EN = 1 << 5;
-
-// ============================================================
-// 3. SENSORS, SETTINGS AND SYSTEM STATE
-// ============================================================
-
-DHT dht(DHT_PIN, DHT11);
 Preferences prefs;
 
-uint8_t mpuAddr = 0x68;
-bool mpuFound = false;
-bool dhtValid = false;
-bool vibValid = false;
+unsigned long lastWiFiTry = 0;
+unsigned long lastMQTTTry = 0;
+unsigned long lastTelemetry = 0;
+unsigned long lastStatus = 0;
 
-float tempC = NAN;
-float hum = NAN;
-float vib = NAN;
+// ============================================================
+// 3. EQUIPMENT PROFILES
+// ============================================================
 
-// Warning thresholds: temperature, humidity, vibration.
-float warnLimit[3] = {32.0f, 75.0f, 1.0f};
-
-// Critical thresholds.
-float critLimit[3] = {40.0f, 90.0f, 3.0f};
-
-const char *metricNames[3] = {"TEMP", "HUM", "VIB"};
-const char *metricKeysW[3] = {"tw", "hw", "vw"};
-const char *metricKeysC[3] = {"tc", "hc", "vc"};
-
-float steps[3] = {0.5f, 1.0f, 0.1f};
-
-int selectedMetric = 0;
-bool editCritical = false;
-
-// Buzzer pattern setting, not physical loudness.
-int buzzerLevel = 2;
-
-// AUTO uses sensor readings.
-// Other modes simulate conditions for demonstration.
-enum Mode {
-  AUTO_MODE,
-  NORMAL_MODE,
-  WARNING_MODE,
-  CRITICAL_MODE
+struct Limits {
+  float criticalLow;
+  float warningLow;
+  float warningHigh;
+  float criticalHigh;
 };
 
-Mode mode = AUTO_MODE;
+struct Profile {
+  const char *name;
+  Limits temperature;
+  Limits humidity;
+  Limits vibration;
+};
 
-uint8_t page = 0;
+// Demonstration limits, not calibrated machinery standards.
+// DHT11 measures ambient rather than internal temperatures.
 
-bool autoPages = true;
-bool motorArmed = false;
-bool motorRunning = false;
-bool stopLatched = false;
+const Profile PROFILES[] = {
 
-uint32_t lastSample = 0;
-uint32_t lastLCD = 0;
-uint32_t lastPage = 0;
-uint32_t lastPrint = 0;
+  {
+    "MOTOR",
+    {0, 10, 60, 70},
+    {20, 30, 75, 90},
+    {0, 0, 1.0f, 3.0f}
+  },
 
-uint32_t buttonChange = 0;
-uint32_t buttonDownAt = 0;
+  {
+    "PUMP",
+    {0, 10, 55, 65},
+    {20, 30, 80, 95},
+    {0, 0, 0.8f, 2.5f}
+  },
 
-bool lastRawButton = HIGH;
-bool stableButton = HIGH;
-bool longHandled = false;
+  {
+    "COMPRESSOR",
+    {0, 10, 50, 60},
+    {20, 30, 70, 85},
+    {0, 0, 1.2f, 3.2f}
+  },
 
-// Forward declarations.
-Mode currentMode();
-Mode sensorMode();
+  {
+    "FAN",
+    {0, 10, 45, 55},
+    {20, 30, 75, 90},
+    {0, 0, 0.6f, 2.0f}
+  },
+
+  {
+    "CONDENSER",
+    {0, 10, 40, 50},
+    {20, 30, 80, 95},
+    {0, 0, 1.5f, 3.5f}
+  },
+
+  {
+    "HEAT_EXCHANGER",
+    {0, 10, 42, 52},
+    {20, 30, 80, 95},
+    {0, 0, 1.5f, 3.5f}
+  },
+
+  {
+    "AHU",
+    {0, 10, 38, 48},
+    {20, 30, 75, 90},
+    {0, 0, 0.7f, 2.2f}
+  },
+
+  {
+    "CHILLER",
+    {0, 10, 40, 50},
+    {20, 30, 80, 95},
+    {0, 0, 0.9f, 2.6f}
+  }
+};
+
+constexpr int PROFILE_COUNT =
+    sizeof(PROFILES) / sizeof(PROFILES[0]);
+
+// 0 = Temperature
+// 1 = Humidity
+// 2 = Vibration
+Limits limits[3];
+
+int profileIndex = 0;
 
 // ============================================================
-// 4. MOTOR CONTROL AND SOFTWARE STOP
+// 4. SENSOR STATE
 // ============================================================
 
-// Force the motor-driver control inputs LOW.
-void motorOff() {
-  digitalWrite(MOTOR_EN, LOW);
-  digitalWrite(MOTOR_IN1, LOW);
-  digitalWrite(MOTOR_IN2, LOW);
-  motorRunning = false;
+float temperatureC = NAN;
+float humidity = NAN;
+float vibrationRMS = NAN;
+
+bool dhtValid = false;
+bool vibrationValid = false;
+bool mpuReady = false;
+
+uint8_t mpuAddress = 0x68;
+
+enum Severity {
+  NORMAL = 0,
+  WARNING = 1,
+  CRITICAL = 2
+};
+
+Severity severity = WARNING;
+
+const char *severityName(Severity s) {
+  if (s == CRITICAL) return "CRITICAL";
+  if (s == WARNING) return "WARNING";
+  return "NORMAL";
 }
 
-// Latch STOP and require an explicit reset and re-arm.
-void latchStop(const char *source) {
-  motorOff();
-  motorArmed = false;
-  stopLatched = true;
+bool buzzerAcknowledged = false;
 
-  Serial.printf(
-    "STOP LATCHED by %s. Reset only when safe.\n",
-    source
-  );
+bool lastButton = HIGH;
+unsigned long lastButtonChange = 0;
+
+String recentIds[12];
+uint8_t recentIndex = 0;
+
+// ============================================================
+// 5. PROFILE CONFIGURATION
+// ============================================================
+
+void loadProfile(int index) {
+
+  profileIndex = index;
+
+  limits[0] = PROFILES[index].temperature;
+  limits[1] = PROFILES[index].humidity;
+  limits[2] = PROFILES[index].vibration;
 }
 
-// Start fan only when local interlocks permit it.
-void startFan() {
-  if (stopLatched) {
-    Serial.println("Fan BLOCKED: stop latched.");
-    return;
+bool goodLimits(int metric, Limits v) {
+
+  if (!isfinite(v.warningHigh) ||
+      !isfinite(v.criticalHigh)) {
+    return false;
   }
 
-  if (!motorArmed) {
-    Serial.println("Fan BLOCKED: motor disarmed.");
-    return;
+  // Vibration uses high limits only.
+  if (metric == 2) {
+
+    return v.warningHigh >= 0 &&
+           v.warningHigh < v.criticalHigh &&
+           v.criticalHigh <= 200;
   }
 
-  if (!dhtValid || !vibValid) {
-    Serial.println("Fan BLOCKED: sensor data unavailable.");
-    return;
+  if (!isfinite(v.criticalLow) ||
+      !isfinite(v.warningLow)) {
+    return false;
   }
 
-  if (currentMode() == CRITICAL_MODE ||
-      sensorMode() == CRITICAL_MODE) {
-    Serial.println("Fan BLOCKED: CRITICAL condition.");
-    return;
+  if (!(v.criticalLow < v.warningLow &&
+        v.warningLow < v.warningHigh &&
+        v.warningHigh < v.criticalHigh)) {
+    return false;
   }
 
-  motorOff();
+  if (metric == 0) {
+    return v.criticalLow >= -40 &&
+           v.criticalHigh <= 80;
+  }
 
-  digitalWrite(MOTOR_IN1, HIGH);
-  digitalWrite(MOTOR_IN2, LOW);
-  digitalWrite(MOTOR_EN, HIGH);
+  return v.criticalLow >= 0 &&
+         v.criticalHigh <= 100;
+}
 
-  motorRunning = true;
+// Save the active profile and thresholds in ESP32 memory.
+void saveSettings() {
 
-  Serial.println("FAN ON until OFF/STOP/critical condition.");
+  prefs.putUChar("profile", profileIndex);
+
+  for (int i = 0; i < 3; ++i) {
+
+    char key[12];
+
+    snprintf(key, sizeof(key), "limit%d", i);
+
+    prefs.putBytes(
+      key,
+      &limits[i],
+      sizeof(Limits)
+    );
+  }
+}
+
+// Restore settings after restart.
+void restoreSettings() {
+
+  prefs.begin("monitor-v3", false);
+
+  int index = prefs.getUChar("profile", 0);
+
+  if (index >= PROFILE_COUNT) {
+    index = 0;
+  }
+
+  loadProfile(index);
+
+  for (int i = 0; i < 3; ++i) {
+
+    char key[12];
+
+    snprintf(key, sizeof(key), "limit%d", i);
+
+    Limits stored;
+
+    if (
+      prefs.getBytesLength(key) == sizeof(Limits) &&
+      prefs.getBytes(
+        key,
+        &stored,
+        sizeof(Limits)
+      ) == sizeof(Limits) &&
+      goodLimits(i, stored)
+    ) {
+      limits[i] = stored;
+    }
+  }
 }
 
 // ============================================================
-// 5. 74HC595 SHIFT REGISTER AND LCD1602
+// 6. MPU6050 / MPU6500 COMMUNICATION
 // ============================================================
 
-// Q0-Q3: LCD D4-D7
-// Q4: LCD RS
-// Q5: LCD EN
+bool readRegisters(
+  uint8_t address,
+  uint8_t reg,
+  uint8_t *buffer,
+  uint8_t count
+) {
 
-void write595(uint8_t value) {
-  digitalWrite(SR_LATCH, LOW);
-  shiftOut(SR_DATA, SR_CLOCK, MSBFIRST, value);
-  digitalWrite(SR_LATCH, HIGH);
-}
-
-void lcdNibble(uint8_t n, bool rs) {
-  uint8_t value = (n & 15) | (rs ? LCD_RS : 0);
-
-  write595(value);
-  delayMicroseconds(1);
-
-  write595(value | LCD_EN);
-  delayMicroseconds(2);
-
-  write595(value);
-  delayMicroseconds(50);
-}
-
-void lcdSend(uint8_t b, bool rs) {
-  lcdNibble(b >> 4, rs);
-  lcdNibble(b & 15, rs);
-}
-
-void lcdCmd(uint8_t b) {
-  lcdSend(b, false);
-  delay(2);
-}
-
-// Initialize LCD in 4-bit mode.
-void lcdInit() {
-  write595(0);
-  delay(100);
-
-  lcdNibble(3, false);
-  delay(5);
-  lcdNibble(3, false);
-
-  delayMicroseconds(150);
-  lcdNibble(3, false);
-  lcdNibble(2, false);
-
-  lcdCmd(0x28);
-  lcdCmd(0x0C);
-  lcdCmd(0x06);
-  lcdCmd(0x01);
-}
-
-// Print one padded 16-character LCD row.
-void lcdLine(uint8_t row, String s) {
-  lcdCmd(0x80 + (row ? 0x40 : 0));
-
-  s = s.substring(0, 16);
-
-  while (s.length() < 16) {
-    s += ' ';
-  }
-
-  for (size_t i = 0; i < s.length(); i++) {
-    lcdSend(s[i], true);
-  }
-}
-
-// ============================================================
-// 6. MPU6500 ACCELEROMETER
-// ============================================================
-
-// Read consecutive MPU6500 registers over I2C.
-bool mpuRead(uint8_t reg, uint8_t *buf, size_t len) {
-  Wire.beginTransmission(mpuAddr);
+  Wire.beginTransmission(address);
   Wire.write(reg);
 
   if (Wire.endTransmission(false) != 0) {
     return false;
   }
 
-  if (Wire.requestFrom((int)mpuAddr, (int)len) != (int)len) {
+  if (
+    Wire.requestFrom(
+      (int)address,
+      (int)count
+    ) != count
+  ) {
     return false;
   }
 
-  for (size_t i = 0; i < len; i++) {
-    buf[i] = Wire.read();
+  for (uint8_t i = 0; i < count; ++i) {
+    buffer[i] = Wire.read();
   }
 
   return true;
 }
 
-void mpuWrite(uint8_t reg, uint8_t value) {
-  Wire.beginTransmission(mpuAddr);
+bool writeRegister(
+  uint8_t address,
+  uint8_t reg,
+  uint8_t value
+) {
+
+  Wire.beginTransmission(address);
   Wire.write(reg);
   Wire.write(value);
-  Wire.endTransmission();
+
+  return Wire.endTransmission() == 0;
 }
 
-// Detect MPU6500 at either common I2C address.
-void setupMPU() {
-  uint8_t who = 0;
+void initializeMPU() {
 
-  for (uint8_t addr : {uint8_t(0x68), uint8_t(0x69)}) {
-    mpuAddr = addr;
+  mpuReady = false;
 
-    if (mpuRead(0x75, &who, 1)) {
-      mpuFound = true;
+  for (
+    uint8_t addr :
+    {uint8_t(0x68), uint8_t(0x69)}
+  ) {
 
-      mpuWrite(0x6B, 0);
-      delay(100);
-      mpuWrite(0x1C, 0);
+    uint8_t id;
+
+    if (
+      readRegisters(addr, 0x75, &id, 1) &&
+      (id == 0x70 || id == 0x68)
+    ) {
+
+      mpuAddress = addr;
+
+      mpuReady =
+          writeRegister(addr, 0x6B, 0x00) &&
+          writeRegister(addr, 0x1C, 0x00);
 
       Serial.printf(
-        "MPU detected at 0x%02X, WHO_AM_I=0x%02X\n",
-        mpuAddr, who
+        "MPU 0x%02X WHO_AM_I=0x%02X ready=%d\n",
+        addr,
+        id,
+        mpuReady
       );
 
       return;
     }
   }
 
-  Serial.println("MPU NOT FOUND - check wiring.");
+  Serial.println(
+    "MPU not detected; vibration invalid"
+  );
 }
 
 // ============================================================
-// 7. READ TEMPERATURE, HUMIDITY AND VIBRATION
+// 7. SENSOR READINGS
 // ============================================================
 
-// DHT11 measures temperature and humidity.
-// MPU6500 provides 16 acceleration samples.
-// Dynamic acceleration RMS estimates vibration.
-void readSensors() {
+void sampleSensors() {
+
   float t = dht.readTemperature();
   float h = dht.readHumidity();
 
-  dhtValid = isfinite(t) && isfinite(h);
+  dhtValid =
+      isfinite(t) &&
+      isfinite(h) &&
+      t >= -40 &&
+      t <= 80 &&
+      h >= 0 &&
+      h <= 100;
 
-  if (dhtValid) {
-    tempC = t;
-    hum = h;
+  temperatureC = dhtValid ? t : NAN;
+  humidity = dhtValid ? h : NAN;
+
+  vibrationValid = false;
+  vibrationRMS = NAN;
+
+  if (!mpuReady) {
+    initializeMPU();
   }
 
-  vibValid = false;
-
-  if (!mpuFound) {
+  if (!mpuReady) {
     return;
   }
 
-  float x[16], y[16], z[16];
-  float mx = 0, my = 0, mz = 0;
-  bool ok = true;
+  // Remove mean acceleration from 16 samples
+  // to estimate vibration.
 
-  for (int i = 0; i < 16; i++) {
+  float ax[16], ay[16], az[16];
+
+  float mx = 0;
+  float my = 0;
+  float mz = 0;
+
+  for (int i = 0; i < 16; ++i) {
+
     uint8_t b[6];
 
-    if (!mpuRead(0x3B, b, 6)) {
-      ok = false;
-      break;
+    if (
+      !readRegisters(
+        mpuAddress,
+        0x3B,
+        b,
+        6
+      )
+    ) {
+      mpuReady = false;
+      return;
     }
 
-    int16_t ax = (int16_t)((b[0] << 8) | b[1]);
-    int16_t ay = (int16_t)((b[2] << 8) | b[3]);
-    int16_t az = (int16_t)((b[4] << 8) | b[5]);
+    int16_t x =
+      (int16_t)((uint16_t(b[0]) << 8) | b[1]);
 
-    x[i] = ax * (9.80665f / 16384.0f);
-    y[i] = ay * (9.80665f / 16384.0f);
-    z[i] = az * (9.80665f / 16384.0f);
+    int16_t y =
+      (int16_t)((uint16_t(b[2]) << 8) | b[3]);
 
-    mx += x[i];
-    my += y[i];
-    mz += z[i];
+    int16_t z =
+      (int16_t)((uint16_t(b[4]) << 8) | b[5]);
+
+    ax[i] = x * (9.80665f / 16384.0f);
+    ay[i] = y * (9.80665f / 16384.0f);
+    az[i] = z * (9.80665f / 16384.0f);
+
+    mx += ax[i];
+    my += ay[i];
+    mz += az[i];
 
     delay(3);
   }
 
-  if (ok) {
-    mx /= 16;
-    my /= 16;
-    mz /= 16;
+  mx /= 16;
+  my /= 16;
+  mz /= 16;
 
-    float sum = 0;
+  float sq = 0;
 
-    for (int i = 0; i < 16; i++) {
-      float dx = x[i] - mx;
-      float dy = y[i] - my;
-      float dz = z[i] - mz;
+  for (int i = 0; i < 16; ++i) {
 
-      sum += dx * dx + dy * dy + dz * dz;
-    }
+    float x = ax[i] - mx;
+    float y = ay[i] - my;
+    float z = az[i] - mz;
 
-    vib = sqrtf(sum / 16);
-    vibValid = true;
+    sq += x*x + y*y + z*z;
   }
+
+  vibrationRMS = sqrtf(sq / 16.0f);
+
+  vibrationValid = isfinite(vibrationRMS);
 }
 
 // ============================================================
-// 8. EQUIPMENT CONDITION CLASSIFICATION
+// 8. EQUIPMENT CONDITION
 // ============================================================
 
-// Missing sensor data is classified as WARNING.
-Mode sensorMode() {
-  if (!dhtValid || !vibValid) {
-    return WARNING_MODE;
+Severity classifyOne(
+  float value,
+  Limits l,
+  bool lowEnabled
+) {
+
+  if (
+    (lowEnabled && value <= l.criticalLow) ||
+    value >= l.criticalHigh
+  ) {
+    return CRITICAL;
   }
 
-  float values[3] = {tempC, hum, vib};
-
-  for (int i = 0; i < 3; i++) {
-    if (values[i] >= critLimit[i]) {
-      return CRITICAL_MODE;
-    }
+  if (
+    (lowEnabled && value <= l.warningLow) ||
+    value >= l.warningHigh
+  ) {
+    return WARNING;
   }
 
-  for (int i = 0; i < 3; i++) {
-    if (values[i] >= warnLimit[i]) {
-      return WARNING_MODE;
-    }
-  }
-
-  return NORMAL_MODE;
+  return NORMAL;
 }
 
-// Return live sensor condition or selected simulation mode.
-Mode currentMode() {
-  return mode == AUTO_MODE ? sensorMode() : mode;
-}
+void updateCondition() {
 
-const char *modeName(Mode m) {
-  switch (m) {
-    case NORMAL_MODE: return "NORMAL";
-    case WARNING_MODE: return "WARNING";
-    case CRITICAL_MODE: return "CRITICAL";
-    default: return "AUTO";
-  }
-}
+  Severity next = NORMAL;
 
-// Format sensor value or show N/A.
-String val(float x, bool valid, int digits) {
-  return valid ? String(x, digits) : String("N/A");
-}
-
-// ============================================================
-// 9. LED, BUZZER AND MOTOR INTERLOCK OUTPUTS
-// ============================================================
-
-void updateOutputs() {
-  Mode m = currentMode();
-
-  digitalWrite(GREEN, m == NORMAL_MODE);
-  digitalWrite(YELLOW, m == WARNING_MODE);
-  digitalWrite(RED, m == CRITICAL_MODE);
-
-  // Different beep rates indicate critical condition.
-  bool beep = false;
-
-  if (m == CRITICAL_MODE && buzzerLevel > 0) {
-    uint32_t period =
-      buzzerLevel == 1 ? 1600 :
-      buzzerLevel == 2 ? 800 : 400;
-
-    beep = (millis() % period) < 120;
+  if (!dhtValid || !vibrationValid) {
+    next = WARNING;
   }
 
-  digitalWrite(BUZZER, beep ? HIGH : LOW);
+  if (dhtValid) {
 
-  // Stop running motor if sensors fail.
-  if (motorRunning && (!dhtValid || !vibValid)) {
-    latchStop("sensor data unavailable");
-  }
-  // Stop running motor if condition becomes critical.
-  else if (motorRunning &&
-           (m == CRITICAL_MODE ||
-            sensorMode() == CRITICAL_MODE)) {
-    latchStop("CRITICAL condition");
-  }
-}
-
-// ============================================================
-// 10. LCD DISPLAY PAGES
-// ============================================================
-
-// Pages 0-3 display monitoring information.
-// Page 4 displays editable thresholds.
-void updateLCD() {
-  if (page == 0) {
-    lcdLine(0, "Temp: " + val(tempC, dhtValid, 1) + " C");
-    lcdLine(1, "Hum: " + val(hum, dhtValid, 0) + " %");
-  }
-  else if (page == 1) {
-    lcdLine(0, "Vib: " + val(vib, vibValid, 3));
-    lcdLine(1, "State: " + String(modeName(currentMode())));
-  }
-  else if (page == 2) {
-    lcdLine(
-      0,
-      "Fan: " + String(motorRunning ? "RUN" : "OFF") +
-      (stopLatched ? " STOP" : "")
+    next = max(
+      next,
+      classifyOne(
+        temperatureC,
+        limits[0],
+        true
+      )
     );
 
-    lcdLine(1, "Mode: " +
-      String(mode == AUTO_MODE ? "AUTO" : "TEST"));
-  }
-  else if (page == 3) {
-    lcdLine(0, "Buzzer: " + String(buzzerLevel) + " (pattern)");
-    lcdLine(1, "IR/BTN READY");
-  }
-  else {
-    int digits = selectedMetric == 2 ? 2 : 1;
-
-    float value = editCritical ?
-      critLimit[selectedMetric] :
-      warnLimit[selectedMetric];
-
-    lcdLine(
-      0,
-      String(metricNames[selectedMetric]) +
-      (editCritical ? " CRIT LIMIT" : " WARN LIMIT")
+    next = max(
+      next,
+      classifyOne(
+        humidity,
+        limits[1],
+        true
+      )
     );
-
-    lcdLine(1, "Set: " + String(value, digits));
   }
-}
 
-// ============================================================
-// 11. SERIAL STATUS AND THRESHOLDS
-// ============================================================
+  if (vibrationValid) {
 
-void printStatus() {
-  Serial.printf(
-    "Temp=%s C | Hum=%s %% | Vib=%s m/s^2 | "
-    "Condition=%s | Fan=%s | Armed=%d | Stop=%d | Beep=%d\n",
-    val(tempC, dhtValid, 1).c_str(),
-    val(hum, dhtValid, 0).c_str(),
-    val(vib, vibValid, 3).c_str(),
-    modeName(currentMode()),
-    motorRunning ? "ON" : "OFF",
-    motorArmed,
-    stopLatched,
-    buzzerLevel
+    next = max(
+      next,
+      classifyOne(
+        vibrationRMS,
+        limits[2],
+        false
+      )
+    );
+  }
+
+  if (next != severity) {
+    buzzerAcknowledged = false;
+  }
+
+  severity = next;
+
+  digitalWrite(
+    PIN_GREEN,
+    severity == NORMAL ? HIGH : LOW
+  );
+
+  digitalWrite(
+    PIN_YELLOW,
+    severity == WARNING ? HIGH : LOW
+  );
+
+  digitalWrite(
+    PIN_RED,
+    severity == CRITICAL ? HIGH : LOW
   );
 }
 
-void printThresholds() {
-  Serial.printf(
-    "Limits: Temp W%.1f/C%.1f C; "
-    "Hum W%.1f/C%.1f %%; "
-    "Vib W%.2f/C%.2f m/s^2\n",
-    warnLimit[0], critLimit[0],
-    warnLimit[1], critLimit[1],
-    warnLimit[2], critLimit[2]
-  );
-}
-
-void setPage(uint8_t p) {
-  page = p;
-  autoPages = false;
-  lastLCD = 0;
-}
-
 // ============================================================
-// 12. CONFIGURABLE THRESHOLDS
+// 9. BUZZER
 // ============================================================
 
-// Threshold changes are stored in ESP32 nonvolatile memory.
-void adjustThreshold(int direction) {
-  float &target = editCritical ?
-    critLimit[selectedMetric] :
-    warnLimit[selectedMetric];
+void updateBuzzer() {
 
-  float candidate =
-    target + steps[selectedMetric] * direction;
-
-  if (candidate < 0) {
-    candidate = 0;
-  }
-
-  if (selectedMetric == 1 && candidate > 100) {
-    candidate = 100;
-  }
-
-  if (editCritical &&
-      candidate <= warnLimit[selectedMetric]) {
-    Serial.println(
-      "Rejected: critical must exceed warning limit."
-    );
+  if (!BUZZER_ENABLED) {
     return;
   }
 
-  if (!editCritical &&
-      candidate >= critLimit[selectedMetric]) {
-    Serial.println(
-      "Rejected: warning must be below critical limit."
-    );
+  if (
+    severity != CRITICAL ||
+    buzzerAcknowledged
+  ) {
+
+    digitalWrite(PIN_BUZZER, LOW);
     return;
   }
 
-  target = candidate;
+  // 200 ms ON, 800 ms OFF.
+  bool beepOn =
+    (millis() % BUZZER_PERIOD_MS) < BUZZER_ON_MS;
 
-  prefs.putFloat(
-    editCritical ?
-      metricKeysC[selectedMetric] :
-      metricKeysW[selectedMetric],
-    target
-  );
-
-  printThresholds();
-  setPage(4);
-}
-
-// ============================================================
-// 13. STOP RESET
-// ============================================================
-
-// Reset never automatically arms or starts the motor.
-void resetStop() {
-  mode = AUTO_MODE;
-
-  if (sensorMode() == CRITICAL_MODE) {
-    Serial.println(
-      "RESET DENIED: sensor readings are CRITICAL."
-    );
-    return;
-  }
-
-  stopLatched = false;
-  motorOff();
-  motorArmed = false;
-
-  Serial.println(
-    "STOP CLEARED. Fan still DISARMED."
+  digitalWrite(
+    PIN_BUZZER,
+    beepOn ? HIGH : LOW
   );
 }
 
-void selectMetric(int index) {
-  selectedMetric = index;
-  setPage(4);
-  printThresholds();
-}
-
 // ============================================================
-// 14. INFRARED REMOTE CONTROL
+// 10. PHYSICAL ACKNOWLEDGEMENT BUTTON
 // ============================================================
 
-void handleRemote(uint16_t cmd) {
-  Serial.printf("IR command 0x%02X\n", cmd);
+void handleButton() {
 
-  switch (cmd) {
-    case 0x45:
-      latchStop("IR POWER");
-      break;
+  bool current = digitalRead(PIN_BUTTON);
 
-    case 0x46:
-      buzzerLevel = min(3, buzzerLevel + 1);
-      break;
+  if (
+    current != lastButton &&
+    millis() - lastButtonChange > 50
+  ) {
 
-    case 0x47:
-      mode = AUTO_MODE;
-      autoPages = true;
-      Serial.println("AUTO monitoring");
-      break;
+    lastButton = current;
+    lastButtonChange = millis();
 
-    case 0x44:
-      setPage((page + 4) % 5);
-      break;
+    if (current == LOW) {
 
-    case 0x40:
-      if (motorRunning) {
-        motorOff();
-        Serial.println("Fan OFF");
-      } else {
-        startFan();
+      buzzerAcknowledged = true;
+
+      if (BUZZER_ENABLED) {
+        digitalWrite(PIN_BUZZER, LOW);
       }
-      break;
-
-    case 0x43:
-      setPage((page + 1) % 5);
-      break;
-
-    case 0x07:
-      adjustThreshold(-1);
-      break;
-
-    case 0x15:
-      buzzerLevel = max(0, buzzerLevel - 1);
-      break;
-
-    case 0x09:
-      adjustThreshold(+1);
-      break;
-
-    case 0x16:
-      setPage(0);
-      break;
-
-    case 0x19:
-      editCritical = !editCritical;
-      setPage(4);
-      Serial.println(
-        editCritical ?
-          "Edit CRITICAL limit" :
-          "Edit WARNING limit"
-      );
-      break;
-
-    case 0x0D:
-      resetStop();
-      break;
-
-    case 0x0C:
-      mode = NORMAL_MODE;
-      Serial.println("TEST NORMAL");
-      break;
-
-    case 0x18:
-      mode = WARNING_MODE;
-      Serial.println("TEST WARNING");
-      break;
-
-    case 0x5E:
-      mode = CRITICAL_MODE;
-      Serial.println("TEST CRITICAL");
-      break;
-
-    // Remote 4: arm motor.
-    case 0x08:
-      if (stopLatched || !dhtValid || !vibValid ||
-          sensorMode() == CRITICAL_MODE) {
-        Serial.println("ARM BLOCKED.");
-      } else {
-        motorArmed = true;
-        Serial.println("Motor ARMED. Fan remains OFF.");
-      }
-      break;
-
-    // Remote 5: fan ON.
-    case 0x1C:
-      startFan();
-      break;
-
-    // Remote 6: fan OFF.
-    case 0x5A:
-      motorOff();
-      Serial.println("Fan OFF (arm retained)");
-      break;
-
-    // Remote 7/8/9: select threshold.
-    case 0x42:
-      selectMetric(0);
-      break;
-
-    case 0x52:
-      selectMetric(1);
-      break;
-
-    case 0x4A:
-      selectMetric(2);
-      break;
-
-    default:
-      Serial.println("Unmapped IR command");
-      break;
-  }
-
-  updateLCD();
-}
-
-// Decode NEC IR commands.
-// Ignore repeated or overflow frames.
-void pollRemote() {
-  if (IrReceiver.decode()) {
-    auto data = IrReceiver.decodedIRData;
-
-    if (data.protocol == NEC &&
-        data.address == 0 &&
-        !(data.flags &
-          (IRDATA_FLAGS_IS_REPEAT |
-           IRDATA_FLAGS_WAS_OVERFLOW))) {
-      handleRemote(data.command);
-    }
-
-    IrReceiver.resume();
-  }
-}
-
-// ============================================================
-// 15. PHYSICAL PUSHBUTTON
-// ============================================================
-
-// Short press latches STOP.
-// Button uses INPUT_PULLUP, active LOW.
-void pollButton() {
-  bool raw = digitalRead(BUTTON);
-  uint32_t now = millis();
-
-  if (raw != lastRawButton) {
-    lastRawButton = raw;
-    buttonChange = now;
-  }
-
-  if (now - buttonChange < 35 ||
-      raw == stableButton) {
-    return;
-  }
-
-  stableButton = raw;
-
-  if (stableButton == LOW) {
-    buttonDownAt = now;
-    longHandled = false;
-  }
-  else if (!longHandled) {
-    latchStop("physical button");
-  }
-}
-
-// Holding the button for 2 seconds requests reset.
-void pollButtonHold() {
-  if (stableButton == LOW &&
-      !longHandled &&
-      millis() - buttonDownAt >= 2000) {
-    longHandled = true;
-    resetStop();
-  }
-}
-
-// ============================================================
-// 16. SERIAL MONITOR COMMANDS
-// ============================================================
-
-void help() {
-  Serial.println(
-    "SERIAL: A auto | N normal | W warning | "
-    "C critical | P status | T thresholds | ? help"
-  );
-
-  Serial.println(
-    "M arm | F fan ON | O fan OFF | "
-    "X latch STOP | R reset STOP"
-  );
-
-  Serial.println(
-    "IR: POWER stop; VOL+/VOL- buzzer; "
-    "FUNC auto; PREV/NEXT LCD; PLAY fan toggle"
-  );
-
-  Serial.println(
-    "IR: DOWN/UP limit -/+; 0 overview; "
-    "EQ warning/critical; ST/REPT reset"
-  );
-
-  Serial.println(
-    "IR: 1/2/3 test modes; 4 ARM; 5 ON; "
-    "6 OFF; 7/8/9 select sensor limit"
-  );
-
-  Serial.println(
-    "BUTTON: short press STOP; hold 2 seconds reset."
-  );
-}
-
-// ============================================================
-// 17. WI-FI INITIALIZATION
-// ============================================================
-
-// Configure Wi-Fi and MQTT using private secrets.h.
-void startNetwork() {
-  WiFi.mode(WIFI_STA);
-
-  // Disable Wi-Fi sleep for more consistent local MQTT.
-  WiFi.setSleep(false);
-
-  // Configure MQTT broker address and message buffer.
-  mqtt.setServer(MQTT_SERVER, MQTT_PORT);
-  mqtt.setBufferSize(768);
-
-  Serial.println("[NET] Starting Wi-Fi connection...");
-
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  wifiAttempted = true;
-  lastWifiAttempt = millis();
-}
-
-// ============================================================
-// 18. WI-FI AND MQTT CONNECTION MANAGEMENT
-// ============================================================
-
-// Called repeatedly from loop().
-// Retry timing avoids long explicit delay() loops.
-// Library connection attempts may still block briefly.
-void serviceNetwork() {
-  uint32_t now = millis();
-
-  // First, check Wi-Fi.
-  if (WiFi.status() != WL_CONNECTED) {
-    if (!wifiAttempted ||
-        now - lastWifiAttempt >= WIFI_RETRY_MS) {
-
-      lastWifiAttempt = now;
-      wifiAttempted = true;
 
       Serial.println(
-        "[NET] Wi-Fi disconnected; retrying..."
+        "Alarm acknowledged locally; severity unchanged"
       );
-
-      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     }
-
-    return;
   }
+}
 
-  // Wi-Fi is connected; now check MQTT.
+// ============================================================
+// 11. MQTT JSON PUBLISHING
+// ============================================================
+
+bool publishJson(
+  const char *topic,
+  JsonDocument &doc,
+  bool retain = false
+) {
+
   if (!mqtt.connected()) {
-    if (!mqttAttempted ||
-        now - lastMqttAttempt >= MQTT_RETRY_MS) {
+    return false;
+  }
 
-      mqttAttempted = true;
-      lastMqttAttempt = now;
+  String data;
+
+  serializeJson(doc, data);
+
+  return mqtt.publish(
+    topic,
+    data.c_str(),
+    retain
+  );
+}
+
+// Confirmed thresholds and current profile.
+void sendConfig() {
+
+  JsonDocument doc;
+
+  doc["device_id"] = DEVICE_ID;
+  doc["profile"] = PROFILES[profileIndex].name;
+
+  const char *names[] = {
+    "temperature",
+    "humidity",
+    "vibration"
+  };
+
+  for (int i = 0; i < 3; ++i) {
+
+    JsonObject m =
+      doc[names[i]].to<JsonObject>();
+
+    if (i != 2) {
+
+      m["critical_low"] = limits[i].criticalLow;
+      m["warning_low"] = limits[i].warningLow;
+    }
+
+    m["warning_high"] = limits[i].warningHigh;
+    m["critical_high"] = limits[i].criticalHigh;
+
+    m["low_enabled"] = (i != 2);
+  }
+
+  publishJson(TOPIC_CONFIG, doc, true);
+}
+
+// Sensor diagnostics and equipment/alarm state.
+void sendHealthAndState() {
+
+  JsonDocument health;
+
+  health["device_id"] = DEVICE_ID;
+
+  health["sensor_health"] =
+    dhtValid && vibrationValid ? "OK" : "FAULT";
+
+  health["dht_valid"] = dhtValid;
+  health["vibration_valid"] = vibrationValid;
+
+  health["fault_reason"] =
+    !dhtValid ? "DHT_INVALID" :
+    !vibrationValid ? "MPU_INVALID" :
+    "NONE";
+
+  health["uptime_ms"] = millis();
+
+  publishJson(TOPIC_HEALTH, health, true);
+
+  JsonDocument state;
+
+  state["device_id"] = DEVICE_ID;
+  state["profile"] = PROFILES[profileIndex].name;
+  state["condition"] = severityName(severity);
+
+  state["alarm_acknowledged"] =
+    buzzerAcknowledged;
+
+  state["buzzer_output_enabled"] =
+    BUZZER_ENABLED;
+
+  state["sensor_fault"] =
+    !dhtValid || !vibrationValid;
+
+  state["uptime_ms"] = millis();
+
+  publishJson(TOPIC_CONTROL, state, true);
+}
+
+// ============================================================
+// 12. CLEAN TELEMETRY
+// ============================================================
+
+void sendTelemetry() {
+
+  JsonDocument doc;
+
+  doc["device_id"] = DEVICE_ID;
+
+  if (dhtValid) {
+
+    doc["temperature"] = temperatureC;
+    doc["humidity"] = humidity;
+
+  } else {
+
+    doc["temperature"] = nullptr;
+    doc["humidity"] = nullptr;
+  }
+
+  if (vibrationValid) {
+
+    doc["vibration"] = vibrationRMS;
+
+  } else {
+
+    doc["vibration"] = nullptr;
+  }
+
+  doc["condition"] = severityName(severity);
+  doc["profile"] = PROFILES[profileIndex].name;
+
+  // Retained for Python subscriber sensor validation.
+  doc["dht_valid"] = dhtValid;
+  doc["vibration_valid"] = vibrationValid;
+
+  doc["sensor_fault"] =
+    !dhtValid || !vibrationValid;
+
+  publishJson(TOPIC_TELEMETRY, doc);
+
+  Serial.printf(
+    "T:%s H:%s V:%s Condition:%s Profile:%s MQTT:%d\n",
+    dhtValid ? String(temperatureC, 1).c_str() : "FAULT",
+    dhtValid ? String(humidity, 1).c_str() : "FAULT",
+    vibrationValid ? String(vibrationRMS, 3).c_str() : "FAULT",
+    severityName(severity),
+    PROFILES[profileIndex].name,
+    mqtt.connected()
+  );
+}
+
+// ============================================================
+// 13. MQTT COMMAND ACKNOWLEDGEMENT
+// ============================================================
+
+void sendAck(
+  const String &id,
+  const char *status,
+  const char *reason
+) {
+
+  JsonDocument ack;
+
+  ack["device_id"] = DEVICE_ID;
+  ack["command_id"] = id;
+  ack["status"] = status;
+  ack["reason"] = reason;
+  ack["uptime_ms"] = millis();
+
+  publishJson(TOPIC_ACK, ack);
+}
+
+bool numeric(JsonVariantConst value) {
+
+  return value.is<int>() ||
+         value.is<float>() ||
+         value.is<double>();
+}
+
+// ============================================================
+// 14. MQTT COMMAND PROCESSING
+// ============================================================
+
+void handleCommand(
+  char *topic,
+  byte *data,
+  unsigned int size
+) {
+
+  if (
+    strcmp(topic, TOPIC_COMMAND) != 0 ||
+    size > 1200 ||
+    size < 10
+  ) {
+    return;
+  }
+
+  JsonDocument cmd;
+
+  if (deserializeJson(cmd, data, size)) {
+    return;
+  }
+
+  String device = cmd["device_id"] | "";
+  String id = cmd["command_id"] | "";
+  String action = cmd["action"] | "";
+
+  if (
+    device != DEVICE_ID ||
+    id.length() < 8 ||
+    id.length() > 64
+  ) {
+    return;
+  }
+
+  // Validate command ID characters.
+  for (unsigned i = 0; i < id.length(); ++i) {
+
+    char c = id[i];
+
+    if (!(
+      isalnum((unsigned char)c) ||
+      c == '-' ||
+      c == '_'
+    )) {
+      return;
+    }
+  }
+
+  // Reject expired commands or unsynchronized clock.
+  time_t now = time(nullptr);
+
+  int64_t expires =
+    cmd["expires_at"] | int64_t(0);
+
+  if (
+    now < 1760000000 ||
+    expires < now ||
+    expires > now + 20
+  ) {
+
+    sendAck(
+      id,
+      "REJECTED",
+      "EXPIRED_OR_UNSYNCED_CLOCK"
+    );
+
+    return;
+  }
+
+  // Reject duplicate command IDs.
+  for (const String &previous : recentIds) {
+
+    if (previous == id) {
+
+      sendAck(
+        id,
+        "REJECTED",
+        "DUPLICATE_COMMAND"
+      );
+
+      return;
+    }
+  }
+
+  recentIds[recentIndex] = id;
+
+  recentIndex =
+    (recentIndex + 1) % 12;
+
+  bool accepted = false;
+  bool changed = false;
+
+  const char *reason = "OK";
+
+  // Request current configuration.
+  if (action == "GET_CONFIG") {
+
+    accepted = true;
+    sendConfig();
+  }
+
+  // Change equipment profile.
+  else if (action == "SET_PROFILE") {
+
+    String name = cmd["profile"] | "";
+
+    int selected = -1;
+
+    for (int i = 0; i < PROFILE_COUNT; ++i) {
+
+      if (name == PROFILES[i].name) {
+        selected = i;
+      }
+    }
+
+    if (selected < 0) {
+
+      reason = "INVALID_PROFILE";
+
+    } else {
+
+      loadProfile(selected);
+
+      accepted = true;
+      changed = true;
+    }
+  }
+
+  // Acknowledge audible alarm remotely.
+  else if (action == "ACK_ALARM") {
+
+    buzzerAcknowledged = true;
+    accepted = true;
+
+    if (BUZZER_ENABLED) {
+      digitalWrite(PIN_BUZZER, LOW);
+    }
+  }
+
+  // Change monitoring thresholds.
+  else if (action == "SET_THRESHOLDS") {
+
+    String metric = cmd["metric"] | "";
+
+    int i =
+      metric == "temperature" ? 0 :
+      metric == "humidity" ? 1 :
+      metric == "vibration" ? 2 : -1;
+
+    if (i < 0) {
+
+      reason = "INVALID_METRIC";
+
+    } else if (
+      !numeric(cmd["warning_high"]) ||
+      !numeric(cmd["critical_high"]) ||
+      (i != 2 &&
+        (!numeric(cmd["warning_low"]) ||
+         !numeric(cmd["critical_low"])))
+    ) {
+
+      reason = "MISSING_OR_INVALID_THRESHOLD";
+
+    } else {
+
+      Limits candidate = limits[i];
+
+      candidate.warningHigh =
+        cmd["warning_high"].as<float>();
+
+      candidate.criticalHigh =
+        cmd["critical_high"].as<float>();
+
+      if (i != 2) {
+
+        candidate.warningLow =
+          cmd["warning_low"].as<float>();
+
+        candidate.criticalLow =
+          cmd["critical_low"].as<float>();
+      }
+
+      if (!goodLimits(i, candidate)) {
+
+        reason = "INVALID_THRESHOLD_RANGE_OR_ORDER";
+
+      } else {
+
+        limits[i] = candidate;
+
+        accepted = true;
+        changed = true;
+      }
+    }
+  }
+
+  else {
+
+    reason = "UNKNOWN_ACTION";
+  }
+
+  // Persist successfully applied changes.
+  if (changed) {
+
+    saveSettings();
+    updateCondition();
+    sendConfig();
+  }
+
+  sendHealthAndState();
+
+  sendAck(
+    id,
+    accepted ? "APPLIED" : "REJECTED",
+    reason
+  );
+}
+
+// ============================================================
+// 15. WI-FI AND MQTT CONNECTION
+// ============================================================
+
+void maintainNetwork() {
+
+  unsigned long now = millis();
+
+  if (WiFi.status() != WL_CONNECTED) {
+
+    if (
+      lastWiFiTry == 0 ||
+      now - lastWiFiTry >= 10000
+    ) {
+
+      lastWiFiTry = now;
+
+      Serial.println("[WIFI] Connecting...");
+
+      WiFi.begin(
+        WIFI_SSID,
+        WIFI_PASSWORD
+      );
+    }
+
+    return;
+  }
+
+  static bool clockStarted = false;
+
+  if (!clockStarted) {
+
+    configTime(
+      0,
+      0,
+      "pool.ntp.org",
+      "time.google.com"
+    );
+
+    clockStarted = true;
+  }
+
+  if (!mqtt.connected()) {
+
+    if (
+      lastMQTTTry == 0 ||
+      now - lastMQTTTry >= 5000
+    ) {
+
+      lastMQTTTry = now;
 
       Serial.printf(
-        "[MQTT] Connecting to %s:%d ...\n",
+        "[MQTT] Connecting to %s:%d\n",
         MQTT_SERVER,
         MQTT_PORT
       );
 
-      // Last Will and Testament:
-      // If connection is unexpectedly lost, the broker
-      // publishes OFFLINE on the status topic.
-      bool connected = mqtt.connect(
+      bool ok = mqtt.connect(
         DEVICE_ID,
         MQTT_USERNAME,
         MQTT_PASSWORD,
@@ -963,330 +1122,138 @@ void serviceNetwork() {
         "OFFLINE"
       );
 
-      if (connected) {
-        Serial.printf(
-          "[MQTT] Connected; ESP32 IP: %s\n",
-          WiFi.localIP().toString().c_str()
+      if (ok) {
+
+        mqtt.subscribe(TOPIC_COMMAND, 1);
+
+        mqtt.publish(
+          TOPIC_STATUS,
+          "ONLINE",
+          true
         );
 
-        mqtt.publish(TOPIC_STATUS, "ONLINE", true);
-        lastStatusPublish = now;
-      }
-      else {
+        sendConfig();
+        sendHealthAndState();
+
+        Serial.println(
+          "[MQTT] Connected and subscribed"
+        );
+
+      } else {
+
         Serial.printf(
-          "[MQTT] Connection failed (state=%d).\n",
+          "[MQTT] Retry rc=%d\n",
           mqtt.state()
         );
       }
     }
 
-    return;
-  }
+  } else {
 
-  // Maintain MQTT connection and keepalive.
-  mqtt.loop();
-
-  // Periodically refresh ONLINE status.
-  if (now - lastStatusPublish >= STATUS_INTERVAL_MS) {
-    lastStatusPublish = now;
-    publishDeviceStatus();
+    mqtt.loop();
   }
 }
 
 // ============================================================
-// 19. MQTT DEVICE STATUS
-// ============================================================
-
-// Retained status lets future dashboards identify
-// the latest known connection state.
-void publishDeviceStatus() {
-  if (mqtt.connected()) {
-    mqtt.publish(TOPIC_STATUS, "ONLINE", true);
-  }
-}
-
-// ============================================================
-// 20. MQTT SENSOR TELEMETRY
-// ============================================================
-
-// Publish real readings as JSON every sensor sample.
-// Invalid sensor readings are sent as JSON null.
-// This does NOT accept remote motor commands.
-void publishTelemetry() {
-  if (!mqtt.connected()) {
-    return;
-  }
-
-  String t = dhtValid ? String(tempC, 1) : "null";
-  String h = dhtValid ? String(hum, 1) : "null";
-  String v = vibValid ? String(vib, 3) : "null";
-
-  String payload =
-    "{\"device_id\":\"" + String(DEVICE_ID) + "\"";
-
-  payload += ",\"temperature\":" + t;
-  payload += ",\"humidity\":" + h;
-  payload += ",\"vibration\":" + v;
-
-  payload +=
-    ",\"condition\":\"" +
-    String(modeName(currentMode())) + "\"";
-
-  payload +=
-    ",\"sensor_condition\":\"" +
-    String(modeName(sensorMode())) + "\"";
-
-  payload +=
-    ",\"mode\":\"" +
-    String(modeName(mode)) + "\"";
-
-  payload +=
-    ",\"dht_valid\":" +
-    String(dhtValid ? "true" : "false");
-
-  payload +=
-    ",\"vibration_valid\":" +
-    String(vibValid ? "true" : "false");
-
-  payload +=
-    ",\"motor_running\":" +
-    String(motorRunning ? "true" : "false");
-
-  payload +=
-    ",\"motor_armed\":" +
-    String(motorArmed ? "true" : "false");
-
-  payload +=
-    ",\"stop_latched\":" +
-    String(stopLatched ? "true" : "false");
-
-  payload +=
-    ",\"uptime_ms\":" +
-    String(millis());
-
-  payload += "}";
-
-  if (!mqtt.publish(
-        TOPIC_TELEMETRY,
-        payload.c_str()
-      )) {
-    Serial.println(
-      "[MQTT] Telemetry publish failed."
-    );
-  }
-}
-
-// ============================================================
-// 21. ESP32 SETUP
+// 16. ESP32 SETUP
 // ============================================================
 
 void setup() {
-  // Initialize motor outputs in the OFF state.
-  digitalWrite(MOTOR_EN, LOW);
-  pinMode(MOTOR_EN, OUTPUT);
 
-  digitalWrite(MOTOR_IN1, LOW);
-  pinMode(MOTOR_IN1, OUTPUT);
-
-  digitalWrite(MOTOR_IN2, LOW);
-  pinMode(MOTOR_IN2, OUTPUT);
-
-  motorOff();
-
-  // Start USB Serial Monitor.
   Serial.begin(115200);
-  delay(300);
 
-  // Configure local indicators.
-  pinMode(GREEN, OUTPUT);
-  pinMode(YELLOW, OUTPUT);
-  pinMode(RED, OUTPUT);
+  pinMode(PIN_GREEN, OUTPUT);
+  pinMode(PIN_YELLOW, OUTPUT);
+  pinMode(PIN_RED, OUTPUT);
 
-  pinMode(BUZZER, OUTPUT);
-  digitalWrite(BUZZER, LOW);
+  digitalWrite(PIN_GREEN, LOW);
+  digitalWrite(PIN_YELLOW, HIGH);
+  digitalWrite(PIN_RED, LOW);
 
-  pinMode(BUTTON, INPUT_PULLUP);
+  pinMode(PIN_BUTTON, INPUT_PULLUP);
 
-  // Configure shift register pins.
-  pinMode(SR_DATA, OUTPUT);
-  pinMode(SR_CLOCK, OUTPUT);
-  pinMode(SR_LATCH, OUTPUT);
+  if (BUZZER_ENABLED) {
 
-  // Initialize sensors and LCD.
-  Wire.begin(SDA_PIN, SCL_PIN);
-  dht.begin();
-  setupMPU();
-  lcdInit();
-
-  // Load previously saved thresholds.
-  prefs.begin("iotmonitor", false);
-
-  for (int i = 0; i < 3; i++) {
-    float w = prefs.getFloat(
-      metricKeysW[i],
-      warnLimit[i]
-    );
-
-    float c = prefs.getFloat(
-      metricKeysC[i],
-      critLimit[i]
-    );
-
-    if (isfinite(w) &&
-        isfinite(c) &&
-        w >= 0 &&
-        c > w &&
-        (i != 1 || c <= 100)) {
-
-      warnLimit[i] = w;
-      critLimit[i] = c;
-    }
+    pinMode(PIN_BUZZER, OUTPUT);
+    digitalWrite(PIN_BUZZER, LOW);
   }
 
-  // Initialize IR receiver.
-  IrReceiver.begin(
-    IR_PIN,
-    DISABLE_LED_FEEDBACK
+  Wire.begin(PIN_SDA, PIN_SCL);
+
+  dht.begin();
+
+  initializeMPU();
+
+  restoreSettings();
+
+  WiFi.mode(WIFI_STA);
+
+  mqtt.setServer(
+    MQTT_SERVER,
+    MQTT_PORT
   );
 
-  lcdLine(0, "IoT Full Test");
-  lcdLine(1, "Fan DISARMED");
+  mqtt.setCallback(handleCommand);
+
+  mqtt.setBufferSize(2048);
 
   Serial.println(
-    "FULL SYSTEM TEST READY; fan OFF and DISARMED."
+    "Monitor v3: no motor, LCD, IR, or sound sensor"
   );
 
-  printThresholds();
-  help();
-
-  // Start Wi-Fi after local hardware initialization.
-  startNetwork();
+  Serial.printf(
+    "Buzzer output enabled: %s\n",
+    BUZZER_ENABLED ? "YES" : "NO"
+  );
 }
 
 // ============================================================
-// 22. MAIN LOOP
+// 17. MAIN LOOP
 // ============================================================
 
-// Local monitoring continues even when MQTT is offline.
 void loop() {
-  uint32_t now = millis();
 
-  // Check physical and IR controls.
-  pollButton();
-  pollButtonHold();
-  pollRemote();
+  handleButton();
 
-  // Process Serial Monitor commands.
-  while (Serial.available()) {
-    char c = toupper(
-      (unsigned char)Serial.read()
-    );
+  maintainNetwork();
 
-    switch (c) {
-      case 'A':
-        mode = AUTO_MODE;
-        Serial.println("AUTO");
-        break;
+  // Non-blocking buzzer control.
+  updateBuzzer();
 
-      case 'N':
-        mode = NORMAL_MODE;
-        Serial.println("TEST NORMAL");
-        break;
+  unsigned long now = millis();
 
-      case 'W':
-        mode = WARNING_MODE;
-        Serial.println("TEST WARNING");
-        break;
+  // Collect sensor measurements every 2.5 seconds.
+  if (
+    lastTelemetry == 0 ||
+    now - lastTelemetry >= 2500
+  ) {
 
-      case 'C':
-        mode = CRITICAL_MODE;
-        Serial.println("TEST CRITICAL");
-        break;
+    lastTelemetry = now;
 
-      case 'P':
-        printStatus();
-        break;
+    sampleSensors();
 
-      case 'T':
-        printThresholds();
-        break;
+    updateCondition();
 
-      case 'M':
-        if (stopLatched ||
-            !dhtValid ||
-            !vibValid ||
-            sensorMode() == CRITICAL_MODE) {
+    sendTelemetry();
 
-          Serial.println("ARM BLOCKED.");
-        }
-        else {
-          motorArmed = true;
-          Serial.println("Motor ARMED.");
-        }
-        break;
+    sendHealthAndState();
+  }
 
-      case 'F':
-        startFan();
-        break;
+  // Publish online status every 15 seconds.
+  if (
+    lastStatus == 0 ||
+    now - lastStatus >= 15000
+  ) {
 
-      case 'O':
-        motorOff();
-        Serial.println("Fan OFF (arm retained)");
-        break;
+    lastStatus = now;
 
-      case 'X':
-        latchStop("Serial X");
-        break;
+    if (mqtt.connected()) {
 
-      case 'R':
-        resetStop();
-        break;
-
-      case '?':
-        help();
-        break;
-
-      default:
-        // Ignore unrecognized characters/newlines.
-        break;
+      mqtt.publish(
+        TOPIC_STATUS,
+        "ONLINE",
+        true
+      );
     }
-  }
-
-  // Sample real sensors every 2 seconds.
-  bool newSample = false;
-
-  if (now - lastSample >= 2000) {
-    lastSample = now;
-    readSensors();
-    newSample = true;
-  }
-
-  // Keep local indicators and interlocks active.
-  updateOutputs();
-
-  // Maintain Wi-Fi and MQTT connections.
-  serviceNetwork();
-
-  // Send sensor readings only after a new sample.
-  if (newSample) {
-    publishTelemetry();
-  }
-
-  // Automatically rotate LCD monitoring pages.
-  if (autoPages && now - lastPage >= 3000) {
-    lastPage = now;
-    page = (page + 1) % 4;
-  }
-
-  // Refresh LCD once per second.
-  if (now - lastLCD >= 1000) {
-    lastLCD = now;
-    updateLCD();
-  }
-
-  // Print status to Serial Monitor every 2 seconds.
-  if (now - lastPrint >= 2000) {
-    lastPrint = now;
-    printStatus();
   }
 }

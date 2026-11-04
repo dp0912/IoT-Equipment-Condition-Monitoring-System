@@ -164,6 +164,9 @@ class TelemetryAggregator:
             "recorded_at": datetime.now(timezone.utc).isoformat(),
             "window_seconds": self.interval_seconds,
             "sample_count": len(self.readings),
+            "fault_sample_count": sum(
+                1 for row in self.readings if row.get("sensor_fault", False)
+            ),
             "latest_condition": latest.get("condition"),
             "worst_condition": worst_condition,
             "temperature": measurements["temperature"],

@@ -167,6 +167,7 @@ aggregators = {}
 
 # Remember each device's last known equipment condition.
 last_seen_condition = {}
+last_seen_sensor_health = {}
 
 # Track Log Analytics uploads separately from Table Storage.
 last_logs_upload_time = {}
@@ -293,102 +294,54 @@ def flush_pending_writes(max_attempts=3):
 # ============================================================
 
 def validate_telemetry(data):
+    """Validate well-formed telemetry while preserving genuine fault reports.
+
+    Null is permitted ONLY when the corresponding explicit validity flag is
+    false. A fault message never becomes a fake zero sensor reading.
     """
-    Validate one MQTT JSON telemetry message.
-
-    Reject:
-        - Non-dictionary JSON.
-        - Missing required fields.
-        - Empty device identifiers.
-        - Non-numeric sensor readings.
-        - NaN or infinite sensor readings.
-        - Unknown equipment conditions.
-
-    Return:
-        Normalized telemetry dictionary.
-    """
-
     if not isinstance(data, dict):
-
-        raise ValueError(
-            "Telemetry must be a JSON object."
-        )
-
-    # Required fields published by the ESP32.
-    required_fields = (
-        "device_id",
-        "temperature",
-        "humidity",
-        "vibration",
-        "condition",
-    )
-
-    missing_fields = [
-        field
-        for field in required_fields
-        if field not in data
-    ]
-
-    if missing_fields:
-
-        raise ValueError(
-            f"Missing fields: {missing_fields}"
-        )
-
-    # Ensure a meaningful device identifier.
-    if not str(data["device_id"]).strip():
-
-        raise ValueError(
-            "Device ID cannot be empty."
-        )
-
-    # Validate all three physical sensor measurements.
-    for field in (
-        "temperature",
-        "humidity",
-        "vibration",
-    ):
-
+        raise ValueError("Telemetry must be a JSON object")
+    for field in ('device_id', 'temperature', 'humidity', 'vibration', 'condition'):
+        if field not in data:
+            raise ValueError(f"Missing field: {field}")
+    if not isinstance(data['device_id'], str) or data['device_id'] != 'ESP32-001':
+        raise ValueError("Unrecognized device ID")
+    for flag in ('dht_valid', 'vibration_valid'):
+        if flag not in data or not isinstance(data[flag], bool):
+            raise ValueError(f"Missing or invalid boolean: {flag}")
+    for field, flag in (('temperature', 'dht_valid'),
+                        ('humidity', 'dht_valid'),
+                        ('vibration', 'vibration_valid')):
+        raw = data[field]
+        if not data[flag]:
+            if raw is not None:
+                raise ValueError(f"Invalid {field} must be null")
+            data[field] = None
+            continue
+        if isinstance(raw, bool) or raw is None:
+            raise ValueError(f"Invalid numeric value: {field}")
         try:
-
-            value = float(data[field])
-
+            value = float(raw)
         except (TypeError, ValueError) as error:
-
-            raise ValueError(
-                f"Invalid numeric value: {field}"
-            ) from error
-
-        # Reject booleans and non-finite numbers.
-        if (
-            isinstance(data[field], bool)
-            or not math.isfinite(value)
-        ):
-
-            raise ValueError(
-                f"Invalid numeric value: {field}"
-            )
-
-        # Normalize the number for downstream processing.
+            raise ValueError(f"Invalid numeric value: {field}") from error
+        if not math.isfinite(value):
+            raise ValueError(f"Non-finite numeric value: {field}")
+        if field == 'humidity' and not 0 <= value <= 100:
+            raise ValueError('Humidity outside physical bounds')
+        if field == 'temperature' and not -40 <= value <= 80:
+            raise ValueError('Temperature outside supported prototype bounds')
+        if field == 'vibration' and not 0 <= value <= 200:
+            raise ValueError('Vibration outside supported prototype bounds')
         data[field] = value
-
-    # Normalize the equipment condition.
-    condition = str(
-        data["condition"]
-    ).upper()
-
-    if condition not in (
-        "NORMAL",
-        "WARNING",
-        "CRITICAL",
-    ):
-
-        raise ValueError(
-            f"Unknown equipment condition: {condition}"
-        )
-
-    data["condition"] = condition
-
+    condition = str(data['condition']).upper()
+    if condition not in ('NORMAL', 'WARNING', 'CRITICAL'):
+        raise ValueError(f"Unknown equipment condition: {condition}")
+    data['condition'] = condition
+    fault = not (data['dht_valid'] and data['vibration_valid'])
+    if 'sensor_fault' in data and data['sensor_fault'] is not fault:
+        raise ValueError('sensor_fault conflicts with validity flags')
+    data['sensor_fault'] = fault
+    data['sensor_health'] = 'FAULT' if fault else 'OK'
     return data
 
 
@@ -537,6 +490,9 @@ def publish_ml_prediction(client, summary):
     A failed ML inference must not interrupt existing SUMMARY uploads,
     alerts, or live connectivity monitoring.
     """
+    if summary.get('fault_sample_count', 0):
+        print('[ML] Skipping window: includes sensor fault sample(s)')
+        return
     try:
         prediction = anomaly_detector.predict(summary)
     except Exception as error:
@@ -792,9 +748,9 @@ def on_message(client, userdata, message):
             json.loads(payload)
         )
 
-        # Validate Log Analytics field mapping locally.
-        # This does not send data to Azure Log Analytics.
-        prepare_telemetry(data)
+        # The Log Analytics schema requires valid numeric values.
+        if not data['sensor_fault']:
+            prepare_telemetry(data)
 
     except (
         json.JSONDecodeError,
@@ -842,6 +798,39 @@ def on_message(client, userdata, message):
         f"Condition: {condition}"
     )
 
+    # Independently log sensor-fault transitions even when the overall
+    # condition remains WARNING. Keep invalid readings out of ML inputs.
+    health = data['sensor_health']
+    last_health = last_seen_sensor_health.get(device_id)
+    if last_health is not None and health != last_health:
+        queue_write('EVENT', dict(data),
+                    previous_condition=f'SENSOR_{last_health}')
+        fault_event = {
+            'device_id': device_id,
+            'timestamp': timestamp,
+            'previous_condition': f'SENSOR_{last_health}',
+            'condition': condition,
+            'severity': 'WARNING' if health == 'FAULT' else 'RECOVERY',
+            'message': f'Sensor health changed: {last_health} -> {health}',
+            'temperature': data['temperature'],
+            'humidity': data['humidity'],
+            'vibration': data['vibration'],
+            'sensor_health': health,
+        }
+        client.publish(LIVE_ALERT_TOPIC, json.dumps(fault_event), retain=False)
+        send_equipment_alert(
+            device_id=device_id,
+            severity='WARNING' if health == 'FAULT' else 'RECOVERY',
+            previous_condition=f'SENSOR_{last_health}',
+            temperature=data['temperature'],
+            humidity=data['humidity'],
+            vibration=data['vibration'],
+            timestamp=timestamp,
+            equipment_type=data.get("profile", "UNKNOWN"),
+        )
+        print(f'[SENSOR HEALTH] {last_health} -> {health}')
+    last_seen_sensor_health[device_id] = health
+
     # --------------------------------------------------------
     # STEP 11D: Detect equipment condition changes.
     # --------------------------------------------------------
@@ -879,15 +868,17 @@ def on_message(client, userdata, message):
 
         # Queue one non-blocking email per real condition transition.
         # Rule-based classification is independent from ML predictions.
-        send_equipment_alert(
-            device_id=device_id,
-            severity="RECOVERY" if condition == "NORMAL" else condition,
-            previous_condition=previous_condition,
-            temperature=data["temperature"],
-            humidity=data["humidity"],
-            vibration=data["vibration"],
-            timestamp=timestamp,
-        )
+        if not data['sensor_fault']:
+            send_equipment_alert(
+                device_id=device_id,
+                severity="RECOVERY" if condition == "NORMAL" else condition,
+                previous_condition=previous_condition,
+                temperature=data["temperature"],
+                humidity=data["humidity"],
+                vibration=data["vibration"],
+                timestamp=timestamp,
+                equipment_type=data.get("profile", "UNKNOWN"),
+            )
 
     # Update condition tracking after processing transition.
     last_seen_condition[device_id] = condition
@@ -943,10 +934,11 @@ def on_message(client, userdata, message):
     # STEP 11G: Optional Azure Log Analytics upload.
     # --------------------------------------------------------
 
-    maybe_upload_logs(
-        data,
-        now,
-    )
+    if not data['sensor_fault']:
+        maybe_upload_logs(
+            data,
+            now,
+        )
 
 
 # ============================================================

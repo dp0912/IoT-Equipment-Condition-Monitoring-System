@@ -5,8 +5,8 @@
     "name": "adq8c97",
     "namespace": "default",
     "uid": "12db40cf-2124-4df0-b7e3-182747c0afce",
-    "resourceVersion": "1791946644019997",
-    "generation": 72,
+    "resourceVersion": "1793824462115000",
+    "generation": 96,
     "creationTimestamp": "2026-10-12T20:20:12Z",
     "labels": {
       "grafana.app/deprecatedInternalID": "2056317783748608"
@@ -15,7 +15,7 @@
       "grafana.app/createdBy": "user:bg10j9sj3x3pcc",
       "grafana.app/saved-from-ui": "Grafana v13.2.3 (Homebrew)",
       "grafana.app/updatedBy": "user:bg10j9sj3x3pcc",
-      "grafana.app/updatedTimestamp": "2026-10-14T02:57:24Z"
+      "grafana.app/updatedTimestamp": "2026-11-04T20:34:22Z"
     }
   },
   "spec": {
@@ -143,7 +143,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -195,7 +198,7 @@
         "spec": {
           "id": 11,
           "title": "Historical Sensor Trends — Azure",
-          "description": "",
+          "description": "Historical Azure readings for the selected dashboard time range. Sparse data is shown as points so empty periods are not drawn as misleading connected lines.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -254,9 +257,7 @@
                 }
               ],
               "transformations": [],
-              "queryOptions": {
-                "timeFrom": "7d"
-              }
+              "queryOptions": {}
             }
           },
           "vizConfig": {
@@ -313,12 +314,12 @@
                     },
                     "insertNulls": false,
                     "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
+                    "lineWidth": 0,
+                    "pointSize": 4,
                     "scaleDistribution": {
                       "type": "linear"
                     },
-                    "showPoints": "auto",
+                    "showPoints": "always",
                     "showValues": false,
                     "spanNulls": false,
                     "stacking": {
@@ -390,7 +391,7 @@
         "spec": {
           "id": 12,
           "title": "Historical Equipment Alerts — Azure",
-          "description": "",
+          "description": "Uses the time range at the top of this dashboard (24h, 7d, 30d, 1y or custom). Data availability depends on Azure history retention and query limits.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -500,9 +501,7 @@
                   }
                 }
               ],
-              "queryOptions": {
-                "timeFrom": "7d"
-              }
+              "queryOptions": {}
             }
           },
           "vizConfig": {
@@ -575,7 +574,7 @@
         "kind": "Panel",
         "spec": {
           "id": 13,
-          "title": "AI/ML Anomaly Status",
+          "title": "ML Anomaly Status",
           "description": "",
           "links": [],
           "data": {
@@ -637,7 +636,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -649,7 +651,7 @@
                 "afterRender": "",
                 "content": "{{#each data}}\n{{#if @last}}\n\n<div style=\"padding:16px 20px; color:#e5e7eb;\">\n\n  <!-- TOP ROW -->\n  <div style=\"display:grid; grid-template-columns:1fr 1fr; gap:20px; padding-bottom:20px;\">\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:13px;\">ML Status</div>\n\n      {{#if (eq (lookup this \"ML Status\") \"ANOMALY\")}}\n      <div style=\"color:#ff6b6b; font-size:30px; font-weight:700;\">\n        ANOMALY\n      </div>\n      {{else}}\n      <div style=\"color:#4ade80; font-size:30px; font-weight:700;\">\n        {{lookup this \"ML Status\"}}\n      </div>\n      {{/if}}\n    </div>\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:13px;\">Anomaly Score</div>\n\n      {{#if (eq (lookup this \"ML Status\") \"ANOMALY\")}}\n      <div style=\"color:#ff6b6b; font-size:30px; font-weight:700;\">\n        {{lookup this \"Anomaly Score\"}}\n      </div>\n      {{else}}\n      <div style=\"color:#4ade80; font-size:30px; font-weight:700;\">\n        {{lookup this \"Anomaly Score\"}}\n      </div>\n      {{/if}}\n    </div>\n\n  </div>\n\n  <div style=\"height:1px; background:#374151; margin-bottom:18px;\"></div>\n\n  <!-- BOTTOM ROW -->\n  <div style=\"display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px;\">\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:12px;\">Device</div>\n      <div style=\"font-size:14px; font-weight:500; color:#e5e7eb;\">\n        {{lookup this \"Device\"}}\n      </div>\n    </div>\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:12px;\">Model</div>\n      <div style=\"font-size:14px; font-weight:500; color:#e5e7eb;\">\n        {{lookup this \"Model\"}}\n      </div>\n    </div>\n\n    <div>\n      <div style=\"color:#9ca3af; font-size:12px;\">Last Updated</div>\n      <div style=\"font-size:14px; font-weight:500; color:#e5e7eb;\">\n        {{date (lookup this \"Last Updated\") \"HH:mm:ss\"}}\n      </div>\n    </div>\n\n  </div>\n</div>\n\n{{/if}}\n{{/each}}",
                 "contentPartials": [],
-                "defaultContent": "The query didn't return any results.",
+                "defaultContent": "No recent AI/ML live message was received in the panel live window.",
                 "editor": {
                   "format": "auto",
                   "language": "html"
@@ -687,6 +689,738 @@
                     "properties": []
                   }
                 ]
+              }
+            }
+          }
+        }
+      },
+      "panel-14": {
+        "kind": "Panel",
+        "spec": {
+          "id": 14,
+          "title": "",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "text",
+            "version": "13.2.3",
+            "spec": {
+              "options": {
+                "code": {
+                  "language": "plaintext",
+                  "showLineNumbers": false,
+                  "showMiniMap": false
+                },
+                "content": "\n\n## Configuration & Control",
+                "mode": "markdown"
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          },
+          "transparent": true
+        }
+      },
+      "panel-15": {
+        "kind": "Panel",
+        "spec": {
+          "id": 15,
+          "title": "Sensor Health — Live MQTT",
+          "description": "Live availability and validity of DHT11 and MPU vibration readings; fault reason shown if invalid.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-mqtt-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "eg11bmp8wr4lcc"
+                      },
+                      "spec": {
+                        "topic": "equipment/ESP32-001/sensor_health"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "reduce",
+                  "spec": {
+                    "options": {
+                      "includeTimeField": false,
+                      "mode": "reduceFields",
+                      "reducers": [
+                        "lastNotNull"
+                      ]
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "marcusolsson-dynamictext-panel",
+            "version": "6.3.0",
+            "spec": {
+              "options": {
+                "afterRender": "",
+                "content": "{{#each data}}{{#if @last}}\n<div style=\"font-family:inherit;padding:12px 14px;max-width:100%;box-sizing:border-box;\">\n  <div style=\"display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;\">\n    <div style=\"background:{{#if (eq sensor_health 'OK')}}#123b2a{{else}}#492729{{/if}};border-radius:8px;padding:7px 11px;font-size:14px;color:{{#if (eq sensor_health 'OK')}}#4ade80{{else}}#fca5a5{{/if}};font-weight:700;\">{{overallLabel sensor_health}}</div>\n  </div>\n  <div style=\"display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;\">\n    <div style=\"border:1px solid #334155;border-radius:8px;padding:10px;min-width:0;\"><div style=\"font-size:12px;color:#94a3b8\">DHT11 · Temperature / humidity</div><div style=\"font-size:15px;font-weight:600;margin-top:5px;\">{{healthLabel dht_valid}}</div></div>\n    <div style=\"border:1px solid #334155;border-radius:8px;padding:10px;min-width:0;\"><div style=\"font-size:12px;color:#94a3b8\">MPU · Vibration</div><div style=\"font-size:15px;font-weight:600;margin-top:5px;\">{{healthLabel vibration_valid}}</div></div>\n  </div>\n  {{#unless (eq sensor_health \"OK\")}}<div style=\"font-size:12px;color:#fca5a5;margin-top:12px;\">Check: {{faultLabel fault_reason}}</div>{{/unless}}\n</div>\n{{/if}}{{/each}}",
+                "contentPartials": [],
+                "defaultContent": "Waiting for latest live MQTT message…",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [],
+                "externalStyles": [],
+                "helpers": "// Render user-friendly status without losing fault information.\ncontext.handlebars.registerHelper('healthLabel', (v) => {\n  if (v === true || v === 'true') return 'Working';\n  if (v === false || v === 'false') return 'Fault';\n  return 'Unknown';\n});\ncontext.handlebars.registerHelper('alarmLabel', (v) => {\n  if (v === true || v === 'true') return 'Acknowledged';\n  if (v === false || v === 'false') return 'Not acknowledged';\n  return 'Unknown';\n});\ncontext.handlebars.registerHelper('buzzerLabel', (v) => {\n  if (v === true || v === 'true') return 'Enabled';\n  if (v === false || v === 'false') return 'Disabled';\n  return 'Unknown';\n});\ncontext.handlebars.registerHelper('overallLabel', (v) => {\n  if (v === 'OK') return 'All sensors working';\n  if (v === 'FAULT') return 'Sensor fault detected';\n  return v || 'Unknown';\n});\ncontext.handlebars.registerHelper('faultLabel', (v) => {\n  if (v === 'NONE') return 'None';\n  if (v === 'DHT_INVALID') return 'Temperature / humidity sensor';\n  if (v === 'MPU_INVALID') return 'Vibration sensor';\n  return v || 'Unknown';\n});\ncontext.handlebars.registerHelper('conditionColor', (v) => {\n  if (v === 'CRITICAL') return '#f87171';\n  if (v === 'WARNING') return '#fbbf24';\n  if (v === 'NORMAL') return '#4ade80';\n  return '#cbd5e1';\n});\n",
+                "renderMode": "allRows",
+                "styles": "",
+                "wrap": false
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-16": {
+        "kind": "Panel",
+        "spec": {
+          "id": 16,
+          "title": "Confirmed Thresholds — Live MQTT",
+          "description": "Confirmed active limits sent by the ESP32. ↓ is low boundary, ↑ is high boundary; vibration checks high only.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-mqtt-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "eg11bmp8wr4lcc"
+                      },
+                      "spec": {
+                        "topic": "equipment/ESP32-001/config"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "reduce",
+                  "spec": {
+                    "options": {
+                      "includeTimeField": false,
+                      "mode": "reduceFields",
+                      "reducers": [
+                        "lastNotNull"
+                      ]
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "marcusolsson-dynamictext-panel",
+            "version": "6.3.0",
+            "spec": {
+              "options": {
+                "afterRender": "",
+                "content": "{{#each data}}{{#if @last}}\n<div style=\"padding:8px 10px 4px; width:100%; box-sizing:border-box; font-family:inherit;\">\n  <div style=\"display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin:0 2px 10px;\">\n    <div style=\"font-size:13px;color:#e2e8f0;font-weight:600;\">Active profile: <span style=\"color:#93c5fd;\">{{profile}}</span></div>\n    <div style=\"font-size:12px;color:#94a3b8;\">ESP32-confirmed limits</div>\n  </div>\n  <table style=\"width:100%;table-layout:fixed;border-collapse:collapse;\">\n    <thead><tr><th style=\"padding:7px 5px; text-align:center; font-size:12px; font-weight:600; color:#cbd5e1; border-bottom:1px solid #475569; white-space:nowrap;text-align:left;\">Sensor</th><th style=\"padding:7px 5px; text-align:center; font-size:12px; font-weight:600; color:#cbd5e1; border-bottom:1px solid #475569; white-space:nowrap;\">Crit ↓</th><th style=\"padding:7px 5px; text-align:center; font-size:12px; font-weight:600; color:#cbd5e1; border-bottom:1px solid #475569; white-space:nowrap;\">Warn ↓</th><th style=\"padding:7px 5px; text-align:center; font-size:12px; font-weight:600; color:#cbd5e1; border-bottom:1px solid #475569; white-space:nowrap;\">Warn ↑</th><th style=\"padding:7px 5px; text-align:center; font-size:12px; font-weight:600; color:#cbd5e1; border-bottom:1px solid #475569; white-space:nowrap;\">Crit ↑</th><th style=\"padding:7px 5px; text-align:center; font-size:12px; font-weight:600; color:#cbd5e1; border-bottom:1px solid #475569; white-space:nowrap;\">Checks</th></tr></thead>\n    <tbody><tr><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;text-align:left;color:#e2e8f0;\">Temperature <span style=\"color:#94a3b8;font-size:11px;font-weight:400;\">(°C)</span></td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold temperature \"critical_low\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold temperature \"warning_low\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold temperature \"warning_high\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold temperature \"critical_high\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;font-size:12px;color:#a5b4fc;\">{{monitorMode temperature}}</td></tr><tr><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;text-align:left;color:#e2e8f0;\">Humidity <span style=\"color:#94a3b8;font-size:11px;font-weight:400;\">(%)</span></td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold humidity \"critical_low\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold humidity \"warning_low\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold humidity \"warning_high\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold humidity \"critical_high\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;font-size:12px;color:#a5b4fc;\">{{monitorMode humidity}}</td></tr><tr><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;text-align:left;color:#e2e8f0;\">Vibration <span style=\"color:#94a3b8;font-size:11px;font-weight:400;\">(RMS)</span></td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold vibration \"critical_low\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold vibration \"warning_low\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold vibration \"warning_high\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;color:#f1f5f9;\">{{threshold vibration \"critical_high\"}}</td><td style=\"padding:8px 7px; text-align:center; font-size:13px; font-weight:600; border-bottom:1px solid #334155; white-space:nowrap;font-size:12px;color:#a5b4fc;\">{{monitorMode vibration}}</td></tr></tbody>\n  </table>\n  <div style=\"font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.4;\">↓ below lower limit &nbsp;·&nbsp; ↑ above upper limit &nbsp;·&nbsp; — not monitored &nbsp;·&nbsp; Low + high checks both directions; High only checks upper limits.</div>\n</div>\n{{/if}}{{/each}}",
+                "contentPartials": [],
+                "defaultContent": "Waiting for latest live MQTT message…",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [],
+                "externalStyles": [],
+                "helpers": "// Handle MQTT nested JSON objects whether the datasource provides an object\n// or a JSON string. Never substitute default thresholds for missing live data.\ncontext.handlebars.registerHelper('threshold', (raw, key) => {\n  let obj = raw;\n  if (typeof obj === 'string') {\n    try { obj = JSON.parse(obj); } catch (_) { return '—'; }\n  }\n  if (!obj || typeof obj !== 'object') return '—';\n  const value = obj[key];\n  return value === undefined || value === null || value === '' ? '—' : String(value);\n});\ncontext.handlebars.registerHelper('monitorMode', (raw) => {\n  let obj = raw;\n  if (typeof obj === 'string') {\n    try { obj = JSON.parse(obj); } catch (_) { return '—'; }\n  }\n  if (!obj || typeof obj !== 'object') return '—';\n  return obj.low_enabled === true ? 'Low + high' : obj.low_enabled === false ? 'High only' : '—';\n});",
+                "renderMode": "allRows",
+                "styles": "",
+                "wrap": false
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-17": {
+        "kind": "Panel",
+        "spec": {
+          "id": 17,
+          "title": "Equipment & Alarm — Live MQTT",
+          "description": "Active profile, current condition, and audible alarm. Acknowledgement silences sound without clearing a critical condition.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-mqtt-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "eg11bmp8wr4lcc"
+                      },
+                      "spec": {
+                        "topic": "equipment/ESP32-001/control_status"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "reduce",
+                  "spec": {
+                    "options": {
+                      "includeTimeField": false,
+                      "mode": "reduceFields",
+                      "reducers": [
+                        "lastNotNull"
+                      ]
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "marcusolsson-dynamictext-panel",
+            "version": "6.3.0",
+            "spec": {
+              "options": {
+                "afterRender": "",
+                "content": "{{#each data}}{{#if @last}}\n<div style=\"font-family:inherit;padding:12px 14px;max-width:100%;box-sizing:border-box;\">\n  <div style=\"display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;\">\n    <div style=\"border:1px solid #334155;border-radius:8px;padding:12px;min-width:0;\"><div style=\"font-size:12px;color:#94a3b8\">Selected equipment</div><div style=\"font-size:19px;font-weight:700;margin-top:5px;overflow-wrap:anywhere;\">{{profile}}</div></div>\n    <div style=\"border:1px solid #334155;border-radius:8px;padding:12px;min-width:0;\"><div style=\"font-size:12px;color:#94a3b8\">Equipment condition</div><div style=\"font-size:19px;font-weight:700;margin-top:5px;color:{{conditionColor condition}};\">{{condition}}</div></div>\n    <div style=\"border:1px solid #334155;border-radius:8px;padding:12px;min-width:0;\"><div style=\"font-size:12px;color:#94a3b8\">Audible alarm</div><div style=\"font-size:15px;font-weight:600;margin-top:5px;\">{{audibleAlarm condition alarm_acknowledged buzzer_output_enabled}}</div></div>\n    \n  </div>\n  <div style=\"font-size:11px;color:#94a3b8;margin-top:10px;\">Press the physical button to silence a CRITICAL buzzer; the equipment condition remains unchanged.</div>\n</div>\n{{/if}}{{/each}}",
+                "contentPartials": [],
+                "defaultContent": "Waiting for latest live MQTT message…",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [],
+                "externalStyles": [],
+                "helpers": "// Render user-friendly status without losing fault information.\ncontext.handlebars.registerHelper('healthLabel', (v) => {\n  if (v === true || v === 'true') return 'Working';\n  if (v === false || v === 'false') return 'Fault';\n  return 'Unknown';\n});\ncontext.handlebars.registerHelper('alarmLabel', (v) => {\n  if (v === true || v === 'true') return 'Acknowledged';\n  if (v === false || v === 'false') return 'Not acknowledged';\n  return 'Unknown';\n});\ncontext.handlebars.registerHelper('buzzerLabel', (v) => {\n  if (v === true || v === 'true') return 'Enabled';\n  if (v === false || v === 'false') return 'Disabled';\n  return 'Unknown';\n});\ncontext.handlebars.registerHelper('overallLabel', (v) => {\n  if (v === 'OK') return 'All sensors working';\n  if (v === 'FAULT') return 'Sensor fault detected';\n  return v || 'Unknown';\n});\ncontext.handlebars.registerHelper('faultLabel', (v) => {\n  if (v === 'NONE') return 'None';\n  if (v === 'DHT_INVALID') return 'Temperature / humidity sensor';\n  if (v === 'MPU_INVALID') return 'Vibration sensor';\n  return v || 'Unknown';\n});\ncontext.handlebars.registerHelper('conditionColor', (v) => {\n  if (v === 'CRITICAL') return '#f87171';\n  if (v === 'WARNING') return '#fbbf24';\n  if (v === 'NORMAL') return '#4ade80';\n  return '#cbd5e1';\n});\n\ncontext.handlebars.registerHelper('audibleAlarm', (condition, ack, enabled) => {\n  if (condition !== 'CRITICAL') return 'No active critical alarm';\n  if (enabled !== true && enabled !== 'true') return 'Buzzer disabled';\n  return (ack === true || ack === 'true') ? 'Acknowledged · muted' : 'Beeping';\n});\n",
+                "renderMode": "allRows",
+                "styles": "",
+                "wrap": false
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-18": {
+        "kind": "Panel",
+        "spec": {
+          "id": 18,
+          "title": "Operator Login",
+          "description": "Operator authorization required to apply changes. Use the button directly under the fields.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {}
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "volkovlabs-form-panel",
+            "version": "6.3.6",
+            "spec": {
+              "options": {
+                "buttonGroup": {
+                  "orientation": "left",
+                  "size": "sm"
+                },
+                "confirmModal": {
+                  "body": "",
+                  "cancel": "Cancel",
+                  "columns": {
+                    "include": [
+                      "name",
+                      "oldValue",
+                      "newValue"
+                    ],
+                    "name": "Field",
+                    "newValue": "New",
+                    "oldValue": "Old"
+                  },
+                  "confirm": "Confirm",
+                  "elementDisplayMode": "modified",
+                  "title": "Confirm change"
+                },
+                "elementValueChanged": "",
+                "elements": [
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "username",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 10,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Username",
+                    "tooltip": "",
+                    "type": "string",
+                    "uid": "iot-username",
+                    "unit": "",
+                    "value": "operator",
+                    "width": 18
+                  },
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "password",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 10,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Password",
+                    "tooltip": "",
+                    "type": "password",
+                    "uid": "iot-password",
+                    "unit": "",
+                    "value": "",
+                    "width": 18
+                  },
+                  {
+                    "background": "",
+                    "backgroundColor": "",
+                    "buttonLabel": "Sign in",
+                    "customCode": "\nconst form = Object.fromEntries(context.panel.elements.map(e=>[e.id,e.value]));\n(async () => {\n  try {\n    const r = await fetch('http://localhost:5001/api/session', {\n      method:'POST',credentials:'include',\n      headers:{'Content-Type':'application/json'},\n      body:JSON.stringify({username:form.username,password:form.password})\n    });\n    const body = await r.json();\n    context.panel.patchFormValue({password:''});\n    if (!r.ok || !body.authenticated) throw new Error(body.error||'Login refused');\n    context.grafana.notifySuccess(['Operator access','Signed in for 30 minutes']);\n    context.grafana.refresh();\n  } catch(err) {\n    context.grafana.notifyError(['Operator login failed',String(err.message||err)]);\n  }\n})();\n",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "foregroundColor": "",
+                    "icon": "",
+                    "id": "operator_signin",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 0,
+                    "queryField": {},
+                    "section": "",
+                    "show": "bottom",
+                    "showIf": "",
+                    "size": "sm",
+                    "title": "",
+                    "tooltip": "",
+                    "type": "button",
+                    "uid": "iot-operator_signin",
+                    "unit": "",
+                    "value": "",
+                    "variant": "primary",
+                    "width": 10
+                  }
+                ],
+                "initial": {
+                  "code": "",
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "highlight": false,
+                  "highlightColor": "red",
+                  "method": "-",
+                  "payload": {}
+                },
+                "layout": {
+                  "orientation": "vertical",
+                  "padding": 10,
+                  "sectionVariant": "default",
+                  "variant": "single"
+                },
+                "reset": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "resetAction": {
+                  "code": "if (context.panel.response) {\n  context.grafana.notifySuccess(['Update', 'Values updated successfully.']);\n  context.grafana.refresh();\n} else {\n  context.grafana.notifyError(['Update', 'An error occurred updating values.']);\n}",
+                  "confirm": false,
+                  "getPayload": "return {}",
+                  "mode": "initial",
+                  "payload": {}
+                },
+                "saveDefault": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "submit": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "sync": false,
+                "update": {
+                  "code": "",
+                  "confirm": false,
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "method": "-",
+                  "payload": {},
+                  "payloadMode": "all"
+                },
+                "updateEnabled": "manual"
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-19": {
+        "kind": "Panel",
+        "spec": {
+          "id": 19,
+          "title": "Temperature Thresholds — ESP32",
+          "description": "Operator sign-in required. Applies new limits only after ESP32 acknowledgement.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {}
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "volkovlabs-form-panel",
+            "version": "6.3.6",
+            "spec": {
+              "options": {
+                "buttonGroup": {
+                  "orientation": "left",
+                  "size": "sm"
+                },
+                "confirmModal": {
+                  "body": "",
+                  "cancel": "Cancel",
+                  "columns": {
+                    "include": [
+                      "name",
+                      "oldValue",
+                      "newValue"
+                    ],
+                    "name": "Field",
+                    "newValue": "New",
+                    "oldValue": "Old"
+                  },
+                  "confirm": "Confirm",
+                  "elementDisplayMode": "modified",
+                  "title": "Confirm change"
+                },
+                "elementValueChanged": "",
+                "elements": [
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "critical_low",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Critical Low",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-critical_low",
+                    "unit": "",
+                    "value": 0,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "warning_low",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Warning Low",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-warning_low",
+                    "unit": "",
+                    "value": 10,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "warning_high",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Warning High",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-warning_high",
+                    "unit": "",
+                    "value": 60,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "critical_high",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Critical High",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-critical_high",
+                    "unit": "",
+                    "value": 70,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "backgroundColor": "",
+                    "buttonLabel": "Apply",
+                    "customCode": "const api = 'http://localhost:5001';\nconst state = Object.fromEntries(context.panel.elements.map(e => [e.id,e.value]));\nconst send = async (path, data) => {\n  const sessionResp = await fetch(api + '/api/session', {credentials:'include'});\n  if (!sessionResp.ok) throw new Error('Sign in using the Operator Access panel first.');\n  const auth = await sessionResp.json();\n  if (!auth.authenticated || !auth.csrf) throw new Error('Sign in as operator first');\n  const reply = await fetch(api + path, {\n    method:'POST', credentials:'include',\n    headers:{'Content-Type':'application/json','X-CSRF-Token':auth.csrf},\n    body:JSON.stringify(data)\n  });\n  const result = await reply.json();\n  if (!reply.ok || result.status !== 'APPLIED') {\n    throw new Error(result.reason || result.error || 'ESP32 did not confirm the command');\n  }\n  context.grafana.notifySuccess(['ESP32 confirmed', result.reason || 'APPLIED']);\n  context.grafana.refresh();\n  return result;\n};\n\n(async () => {\n  try { await send('/api/config', {metric:\"temperature\",critical_low:Number(state[\"critical_low\"]),warning_low:Number(state[\"warning_low\"]),warning_high:Number(state[\"warning_high\"]),critical_high:Number(state[\"critical_high\"])}); }\n  catch(err) { context.grafana.notifyError(['Command NOT applied', String(err.message || err)]); }\n})();",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "foregroundColor": "",
+                    "icon": "",
+                    "id": "apply_temperature",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 0,
+                    "queryField": {},
+                    "section": "",
+                    "show": "bottom",
+                    "showIf": "",
+                    "size": "sm",
+                    "title": "",
+                    "tooltip": "",
+                    "type": "button",
+                    "uid": "iot-apply_temperature",
+                    "unit": "",
+                    "value": "",
+                    "variant": "primary",
+                    "width": 10
+                  }
+                ],
+                "initial": {
+                  "code": "\n(async () => {\n  try {\n    const r = await fetch('http://localhost:5001/api/config', {credentials:'include'});\n    if (!r.ok) return;\n    const body = await r.json();\n    const values = body['temperature'];\n    if (!values) return;\n    context.panel.patchFormValue(values);\n    context.panel.setInitial(values);\n  } catch(err) { console.warn('ESP32 configuration not loaded:', err); }\n})();\n",
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "highlight": false,
+                  "highlightColor": "red",
+                  "method": "code",
+                  "payload": {}
+                },
+                "layout": {
+                  "orientation": "vertical",
+                  "padding": 10,
+                  "sectionVariant": "default",
+                  "variant": "single"
+                },
+                "reset": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "resetAction": {
+                  "code": "if (context.panel.response) {\n  context.grafana.notifySuccess(['Update', 'Values updated successfully.']);\n  context.grafana.refresh();\n} else {\n  context.grafana.notifyError(['Update', 'An error occurred updating values.']);\n}",
+                  "confirm": false,
+                  "getPayload": "return {}",
+                  "mode": "initial",
+                  "payload": {}
+                },
+                "saveDefault": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "submit": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "sync": false,
+                "update": {
+                  "code": "",
+                  "confirm": false,
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "method": "-",
+                  "payload": {},
+                  "payloadMode": "all"
+                },
+                "updateEnabled": "manual"
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
               }
             }
           }
@@ -738,7 +1472,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -826,6 +1563,629 @@
           }
         }
       },
+      "panel-20": {
+        "kind": "Panel",
+        "spec": {
+          "id": 20,
+          "title": "Humidity Thresholds — ESP32",
+          "description": "Operator sign-in required. Applies new limits only after ESP32 acknowledgement.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {}
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "volkovlabs-form-panel",
+            "version": "6.3.6",
+            "spec": {
+              "options": {
+                "buttonGroup": {
+                  "orientation": "left",
+                  "size": "sm"
+                },
+                "confirmModal": {
+                  "body": "",
+                  "cancel": "Cancel",
+                  "columns": {
+                    "include": [
+                      "name",
+                      "oldValue",
+                      "newValue"
+                    ],
+                    "name": "Field",
+                    "newValue": "New",
+                    "oldValue": "Old"
+                  },
+                  "confirm": "Confirm",
+                  "elementDisplayMode": "modified",
+                  "title": "Confirm change"
+                },
+                "elementValueChanged": "",
+                "elements": [
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "critical_low",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Critical Low",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-critical_low",
+                    "unit": "",
+                    "value": 20,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "warning_low",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Warning  Low",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-warning_low",
+                    "unit": "",
+                    "value": 30,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "warning_high",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Warning High",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-warning_high",
+                    "unit": "",
+                    "value": 75,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "critical_high",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Critical High",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-critical_high",
+                    "unit": "",
+                    "value": 90,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "backgroundColor": "",
+                    "buttonLabel": "Apply",
+                    "customCode": "const api = 'http://localhost:5001';\nconst state = Object.fromEntries(context.panel.elements.map(e => [e.id,e.value]));\nconst send = async (path, data) => {\n  const sessionResp = await fetch(api + '/api/session', {credentials:'include'});\n  if (!sessionResp.ok) throw new Error('Sign in using the Operator Access panel first.');\n  const auth = await sessionResp.json();\n  if (!auth.authenticated || !auth.csrf) throw new Error('Sign in as operator first');\n  const reply = await fetch(api + path, {\n    method:'POST', credentials:'include',\n    headers:{'Content-Type':'application/json','X-CSRF-Token':auth.csrf},\n    body:JSON.stringify(data)\n  });\n  const result = await reply.json();\n  if (!reply.ok || result.status !== 'APPLIED') {\n    throw new Error(result.reason || result.error || 'ESP32 did not confirm the command');\n  }\n  context.grafana.notifySuccess(['ESP32 confirmed', result.reason || 'APPLIED']);\n  context.grafana.refresh();\n  return result;\n};\n\n(async () => {\n  try { await send('/api/config', {metric:\"humidity\",critical_low:Number(state[\"critical_low\"]),warning_low:Number(state[\"warning_low\"]),warning_high:Number(state[\"warning_high\"]),critical_high:Number(state[\"critical_high\"])}); }\n  catch(err) { context.grafana.notifyError(['Command NOT applied', String(err.message || err)]); }\n})();",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "foregroundColor": "",
+                    "icon": "",
+                    "id": "apply_humidity",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 0,
+                    "queryField": {},
+                    "section": "",
+                    "show": "bottom",
+                    "showIf": "",
+                    "size": "sm",
+                    "title": "",
+                    "tooltip": "",
+                    "type": "button",
+                    "uid": "iot-apply_humidity",
+                    "unit": "",
+                    "value": "",
+                    "variant": "primary",
+                    "width": 10
+                  }
+                ],
+                "initial": {
+                  "code": "\n(async () => {\n  try {\n    const r = await fetch('http://localhost:5001/api/config', {credentials:'include'});\n    if (!r.ok) return;\n    const body = await r.json();\n    const values = body['humidity'];\n    if (!values) return;\n    context.panel.patchFormValue(values);\n    context.panel.setInitial(values);\n  } catch(err) { console.warn('ESP32 configuration not loaded:', err); }\n})();\n",
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "highlight": false,
+                  "highlightColor": "red",
+                  "method": "code",
+                  "payload": {}
+                },
+                "layout": {
+                  "orientation": "vertical",
+                  "padding": 10,
+                  "sectionVariant": "default",
+                  "variant": "single"
+                },
+                "reset": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "resetAction": {
+                  "code": "if (context.panel.response) {\n  context.grafana.notifySuccess(['Update', 'Values updated successfully.']);\n  context.grafana.refresh();\n} else {\n  context.grafana.notifyError(['Update', 'An error occurred updating values.']);\n}",
+                  "confirm": false,
+                  "getPayload": "return {}",
+                  "mode": "initial",
+                  "payload": {}
+                },
+                "saveDefault": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "submit": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "sync": false,
+                "update": {
+                  "code": "",
+                  "confirm": false,
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "method": "-",
+                  "payload": {},
+                  "payloadMode": "all"
+                },
+                "updateEnabled": "manual"
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-21": {
+        "kind": "Panel",
+        "spec": {
+          "id": 21,
+          "title": "Vibration Thresholds — ESP32",
+          "description": "Operator sign-in required. Applies new limits only after ESP32 acknowledgement.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {}
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "volkovlabs-form-panel",
+            "version": "6.3.6",
+            "spec": {
+              "options": {
+                "buttonGroup": {
+                  "orientation": "left",
+                  "size": "sm"
+                },
+                "confirmModal": {
+                  "body": "",
+                  "cancel": "Cancel",
+                  "columns": {
+                    "include": [
+                      "name",
+                      "oldValue",
+                      "newValue"
+                    ],
+                    "name": "Field",
+                    "newValue": "New",
+                    "oldValue": "Old"
+                  },
+                  "confirm": "Confirm",
+                  "elementDisplayMode": "modified",
+                  "title": "Confirm change"
+                },
+                "elementValueChanged": "",
+                "elements": [
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "warning_high",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Warning High",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-warning_high",
+                    "unit": "",
+                    "value": 1,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "critical_high",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 12,
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Critical High",
+                    "tooltip": "",
+                    "type": "number",
+                    "uid": "iot-critical_high",
+                    "unit": "",
+                    "value": 3,
+                    "width": 14
+                  },
+                  {
+                    "background": "",
+                    "backgroundColor": "",
+                    "buttonLabel": "Apply",
+                    "customCode": "const api = 'http://localhost:5001';\nconst state = Object.fromEntries(context.panel.elements.map(e => [e.id,e.value]));\nconst send = async (path, data) => {\n  const sessionResp = await fetch(api + '/api/session', {credentials:'include'});\n  if (!sessionResp.ok) throw new Error('Sign in using the Operator Access panel first.');\n  const auth = await sessionResp.json();\n  if (!auth.authenticated || !auth.csrf) throw new Error('Sign in as operator first');\n  const reply = await fetch(api + path, {\n    method:'POST', credentials:'include',\n    headers:{'Content-Type':'application/json','X-CSRF-Token':auth.csrf},\n    body:JSON.stringify(data)\n  });\n  const result = await reply.json();\n  if (!reply.ok || result.status !== 'APPLIED') {\n    throw new Error(result.reason || result.error || 'ESP32 did not confirm the command');\n  }\n  context.grafana.notifySuccess(['ESP32 confirmed', result.reason || 'APPLIED']);\n  context.grafana.refresh();\n  return result;\n};\n\n(async () => {\n  try { await send('/api/config', {metric:\"vibration\",warning_high:Number(state[\"warning_high\"]),critical_high:Number(state[\"critical_high\"])}); }\n  catch(err) { context.grafana.notifyError(['Command NOT applied', String(err.message || err)]); }\n})();",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "foregroundColor": "",
+                    "icon": "",
+                    "id": "apply_vibration",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 0,
+                    "queryField": {},
+                    "section": "",
+                    "show": "bottom",
+                    "showIf": "",
+                    "size": "sm",
+                    "title": "",
+                    "tooltip": "",
+                    "type": "button",
+                    "uid": "iot-apply_vibration",
+                    "unit": "",
+                    "value": "",
+                    "variant": "primary",
+                    "width": 10
+                  }
+                ],
+                "initial": {
+                  "code": "\n(async () => {\n  try {\n    const r = await fetch('http://localhost:5001/api/config', {credentials:'include'});\n    if (!r.ok) return;\n    const body = await r.json();\n    const values = body['vibration'];\n    if (!values) return;\n    context.panel.patchFormValue(values);\n    context.panel.setInitial(values);\n  } catch(err) { console.warn('ESP32 configuration not loaded:', err); }\n})();\n",
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "highlight": false,
+                  "highlightColor": "red",
+                  "method": "code",
+                  "payload": {}
+                },
+                "layout": {
+                  "orientation": "vertical",
+                  "padding": 10,
+                  "sectionVariant": "default",
+                  "variant": "single"
+                },
+                "reset": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "resetAction": {
+                  "code": "if (context.panel.response) {\n  context.grafana.notifySuccess(['Update', 'Values updated successfully.']);\n  context.grafana.refresh();\n} else {\n  context.grafana.notifyError(['Update', 'An error occurred updating values.']);\n}",
+                  "confirm": false,
+                  "getPayload": "return {}",
+                  "mode": "initial",
+                  "payload": {}
+                },
+                "saveDefault": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "submit": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "sync": false,
+                "update": {
+                  "code": "",
+                  "confirm": false,
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "method": "-",
+                  "payload": {},
+                  "payloadMode": "all"
+                },
+                "updateEnabled": "manual"
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-22": {
+        "kind": "Panel",
+        "spec": {
+          "id": 22,
+          "title": "Equipment Monitoring Profile",
+          "description": "Select one of eight demonstration equipment monitoring profiles. A profile defines sensor thresholds for this ESP32; it does not control a physical machine.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {}
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "volkovlabs-form-panel",
+            "version": "6.3.6",
+            "spec": {
+              "options": {
+                "buttonGroup": {
+                  "orientation": "left",
+                  "size": "sm"
+                },
+                "confirmModal": {
+                  "body": "",
+                  "cancel": "Cancel",
+                  "columns": {
+                    "include": [
+                      "name",
+                      "oldValue",
+                      "newValue"
+                    ],
+                    "name": "Field",
+                    "newValue": "New",
+                    "oldValue": "Old"
+                  },
+                  "confirm": "Confirm",
+                  "elementDisplayMode": "modified",
+                  "title": "Confirm change"
+                },
+                "elementValueChanged": "",
+                "elements": [
+                  {
+                    "background": "",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "id": "profile",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 16,
+                    "options": [
+                      {
+                        "id": "MOTOR",
+                        "label": "Motor (vibration / ambient)",
+                        "value": "MOTOR"
+                      },
+                      {
+                        "id": "PUMP",
+                        "label": "Pump (vibration / ambient)",
+                        "value": "PUMP"
+                      },
+                      {
+                        "id": "COMPRESSOR",
+                        "label": "Compressor (vibration / ambient)",
+                        "value": "COMPRESSOR"
+                      },
+                      {
+                        "id": "FAN",
+                        "label": "Fan (vibration / air)",
+                        "value": "FAN"
+                      },
+                      {
+                        "id": "CONDENSER",
+                        "label": "Condenser (ambient / airflow context)",
+                        "value": "CONDENSER"
+                      },
+                      {
+                        "id": "HEAT_EXCHANGER",
+                        "label": "Heat exchanger (ambient context)",
+                        "value": "HEAT_EXCHANGER"
+                      },
+                      {
+                        "id": "AHU",
+                        "label": "Air handling unit (air / vibration)",
+                        "value": "AHU"
+                      },
+                      {
+                        "id": "CHILLER",
+                        "label": "Chiller (ambient / vibration)",
+                        "value": "CHILLER"
+                      }
+                    ],
+                    "optionsSource": "Custom",
+                    "queryField": {},
+                    "section": "",
+                    "showIf": "",
+                    "title": "Equipment type",
+                    "tooltip": "",
+                    "type": "select",
+                    "uid": "iot-profile",
+                    "unit": "",
+                    "value": "MOTOR",
+                    "width": 56
+                  },
+                  {
+                    "background": "",
+                    "backgroundColor": "",
+                    "buttonLabel": "Apply",
+                    "customCode": "const api = 'http://localhost:5001';\nconst state = Object.fromEntries(context.panel.elements.map(e => [e.id,e.value]));\nconst send = async (path, data) => {\n  const sr = await fetch(api + '/api/session',{credentials:'include'});\n  if (!sr.ok) throw new Error('Sign in with Operator Access first');\n  const auth = await sr.json();\n  if (!auth.authenticated || !auth.csrf) throw new Error('Sign in as operator first');\n  const res = await fetch(api + path,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-CSRF-Token':auth.csrf},body:JSON.stringify(data)});\n  const result = await res.json();\n  if (!res.ok || result.status !== 'APPLIED') throw new Error(result.reason||result.error||'ESP32 did not acknowledge');\n  context.grafana.notifySuccess(['ESP32 confirmed',result.reason||'APPLIED']);\n  context.grafana.refresh();\n};\n(async()=>{try{await send('/api/profile',{profile:String(state.profile)});}catch(err){context.grafana.notifyError(['Profile NOT applied',String(err.message||err)]);}})();",
+                    "disableIf": "",
+                    "fieldName": "",
+                    "foregroundColor": "",
+                    "icon": "",
+                    "id": "apply-profile",
+                    "labelBackground": "",
+                    "labelColor": "",
+                    "labelWidth": 0,
+                    "queryField": {},
+                    "section": "",
+                    "show": "bottom",
+                    "showIf": "",
+                    "size": "sm",
+                    "title": "",
+                    "tooltip": "",
+                    "type": "button",
+                    "uid": "iot-apply-profile",
+                    "unit": "",
+                    "value": "",
+                    "variant": "primary",
+                    "width": 10
+                  }
+                ],
+                "initial": {
+                  "code": "\n(async () => {\n  try {\n    const r = await fetch('http://localhost:5001/api/config', {credentials:'include'});\n    if (!r.ok) return;\n    const body = await r.json();\n    const current = body.profile || body.config?.profile;\n    if (current) {\n      context.panel.patchFormValue({profile:current});\n      context.panel.setInitial({profile:current});\n    }\n  } catch (err) { console.warn('Profile initialization failed:', err); }\n})();\n",
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "highlight": false,
+                  "highlightColor": "red",
+                  "method": "code",
+                  "payload": {}
+                },
+                "layout": {
+                  "orientation": "vertical",
+                  "padding": 10,
+                  "sectionVariant": "default",
+                  "variant": "single"
+                },
+                "reset": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "resetAction": {
+                  "code": "if (context.panel.response) {\n  context.grafana.notifySuccess(['Update', 'Values updated successfully.']);\n  context.grafana.refresh();\n} else {\n  context.grafana.notifyError(['Update', 'An error occurred updating values.']);\n}",
+                  "confirm": false,
+                  "getPayload": "return {}",
+                  "mode": "initial",
+                  "payload": {}
+                },
+                "saveDefault": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "submit": {
+                  "backgroundColor": "",
+                  "foregroundColor": "",
+                  "icon": "",
+                  "text": "",
+                  "variant": "hidden"
+                },
+                "sync": false,
+                "update": {
+                  "code": "",
+                  "confirm": false,
+                  "contentType": "application/json",
+                  "getPayload": "",
+                  "method": "-",
+                  "payload": {},
+                  "payloadMode": "all"
+                },
+                "updateEnabled": "manual"
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
       "panel-3": {
         "kind": "Panel",
         "spec": {
@@ -872,7 +2232,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -925,7 +2288,7 @@
         "kind": "Panel",
         "spec": {
           "id": 4,
-          "title": "💧Humidity (%H)",
+          "title": "💧 Humidity (%)",
           "description": "Latest relative humidity reading from ESP32-001, updated in real time through MQTT.",
           "links": [],
           "data": {
@@ -967,7 +2330,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -1063,7 +2429,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -1156,7 +2525,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -1273,7 +2645,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -1475,8 +2850,8 @@
         "kind": "Panel",
         "spec": {
           "id": 8,
-          "title": "Latest Readings (Live MQTT)",
-          "description": "",
+          "title": "Latest Readings — Live MQTT",
+          "description": "Most recent temperature, humidity, vibration and equipment condition. Detailed health, alarm and profile information is shown in separate panels.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1519,20 +2894,41 @@
                 },
                 {
                   "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "names": [
+                          "Time",
+                          "temperature",
+                          "humidity",
+                          "vibration",
+                          "condition"
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
                   "group": "organize",
                   "spec": {
                     "options": {
-                      "excludeByName": {
-                        "device_id": true,
-                        "dht_valid": true,
-                        "sensor_condition": true,
-                        "stop_latched": true,
-                        "uptime_ms": true,
-                        "vibration_valid": true
-                      },
+                      "excludeByName": {},
                       "includeByName": {},
-                      "indexByName": {},
-                      "renameByName": {}
+                      "indexByName": {
+                        "Time": 0,
+                        "condition": 4,
+                        "humidity": 2,
+                        "temperature": 1,
+                        "vibration": 3
+                      },
+                      "renameByName": {
+                        "condition": "Condition",
+                        "humidity": "Humidity %",
+                        "temperature": "Temperature °C",
+                        "vibration": "Vibration RMS"
+                      }
                     }
                   }
                 },
@@ -1556,7 +2952,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -1593,7 +2992,56 @@
                     "inspect": false
                   }
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Time"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 165
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Temperature °C"
+                    },
+                    "properties": [
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Humidity %"
+                    },
+                    "properties": [
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Vibration RMS"
+                    },
+                    "properties": [
+                      {
+                        "id": "decimals",
+                        "value": 3
+                      }
+                    ]
+                  }
+                ]
               }
             }
           }
@@ -1688,7 +3136,10 @@
                   }
                 }
               ],
-              "queryOptions": {}
+              "queryOptions": {
+                "timeFrom": "15m",
+                "hideTimeOverride": true
+              }
             }
           },
           "vizConfig": {
@@ -1949,6 +3400,123 @@
                 "name": "panel-13"
               }
             }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 37,
+              "width": 24,
+              "height": 3,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-14"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 40,
+              "width": 10,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-15"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 10,
+              "y": 40,
+              "width": 14,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-17"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 47,
+              "width": 24,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-16"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 55,
+              "width": 12,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-18"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 55,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-19"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 61,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-20"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 63,
+              "width": 12,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-21"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 69,
+              "width": 24,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-22"
+              }
+            }
           }
         ]
       }
@@ -1960,7 +3528,8 @@
       "iot",
       "mqtt",
       "live",
-      "test"
+      "test",
+      "operator-clean-v10"
     ],
     "timeSettings": {
       "timezone": "browser",
@@ -1978,6 +3547,58 @@
         "1h",
         "2h",
         "1d"
+      ],
+      "quickRanges": [
+        {
+          "display": "Last 15 minutes",
+          "from": "now-15m",
+          "to": "now"
+        },
+        {
+          "display": "Last 1 hour",
+          "from": "now-1h",
+          "to": "now"
+        },
+        {
+          "display": "Last 6 hours",
+          "from": "now-6h",
+          "to": "now"
+        },
+        {
+          "display": "Last 12 hours",
+          "from": "now-12h",
+          "to": "now"
+        },
+        {
+          "display": "Last 24 hours",
+          "from": "now-24h",
+          "to": "now"
+        },
+        {
+          "display": "Last 7 days",
+          "from": "now-7d",
+          "to": "now"
+        },
+        {
+          "display": "Last 30 days",
+          "from": "now-30d",
+          "to": "now"
+        },
+        {
+          "display": "Last 90 days",
+          "from": "now-90d",
+          "to": "now"
+        },
+        {
+          "display": "Last 6 months",
+          "from": "now-6M",
+          "to": "now"
+        },
+        {
+          "display": "Last 1 year",
+          "from": "now-1y",
+          "to": "now"
+        }
       ],
       "hideTimepicker": false,
       "fiscalYearStartMonth": 0

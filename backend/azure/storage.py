@@ -151,32 +151,21 @@ def save_telemetry(data):
     )
 
     # Keep the same field names expected by the existing API.
+    for field, column in (("temperature", "Temperature"),
+                          ("humidity", "Humidity"),
+                          ("vibration", "Vibration")):
+        if data.get(field) is not None:
+            entity[column] = float(data[field])
     entity.update({
-        "Temperature": float(data["temperature"]),
-        "Humidity": float(data["humidity"]),
-        "Vibration": float(data.get("vibration") or 0),
-
         "Condition": str(data["condition"]),
-        "SensorCondition": str(
-            data.get("sensor_condition", "")
-        ),
+        "SensorCondition": str(data.get("sensor_condition", "")),
         "Mode": str(data.get("mode", "")),
-
-        "MotorRunning": bool(
-            data.get("motor_running", False)
-        ),
-        "MotorArmed": bool(
-            data.get("motor_armed", False)
-        ),
-        "StopLatched": bool(
-            data.get("stop_latched", False)
-        ),
-
+        "MotorRunning": bool(data.get("motor_running", False)),
+        "MotorArmed": bool(data.get("motor_armed", False)),
+        "StopLatched": bool(data.get("stop_latched", False)),
         "DHTValid": bool(data.get("dht_valid", False)),
-        "VibrationValid": bool(
-            data.get("vibration_valid", False)
-        ),
-
+        "VibrationValid": bool(data.get("vibration_valid", False)),
+        "SensorFault": bool(data.get("sensor_fault", False)),
         "UptimeMs": int(data.get("uptime_ms") or 0),
     })
 
@@ -262,15 +251,8 @@ def save_summary(summary):
     latest = summary["latest_telemetry"]
 
     entity.update({
-        "Temperature": float(
-            latest.get("temperature") or 0
-        ),
-        "Humidity": float(
-            latest.get("humidity") or 0
-        ),
-        "Vibration": float(
-            latest.get("vibration") or 0
-        ),
+        "SensorFault": bool(latest.get("sensor_fault", False)),
+        "FaultSampleCount": int(summary.get("fault_sample_count", 0)),
         "SensorCondition": str(
             latest.get("sensor_condition", "")
         ),
@@ -293,6 +275,11 @@ def save_summary(summary):
         "UptimeMs": int(latest.get("uptime_ms") or 0),
     })
 
+    for field, column in (("temperature", "Temperature"),
+                          ("humidity", "Humidity"),
+                          ("vibration", "Vibration")):
+        if latest.get(field) is not None:
+            entity[column] = float(latest[field])
     return upload_entity(entity)
 
 
@@ -321,8 +308,11 @@ def save_event(data, previous_condition):
         else "UNKNOWN"
     )
 
-    # Identify the event category.
-    if current_condition == "CRITICAL":
+    # Identify sensor-fault transitions separately from condition changes.
+    if previous_condition.startswith("SENSOR_"):
+        event_type = "SENSOR_FAULT" if data.get("sensor_fault") else "SENSOR_RECOVERY"
+
+    elif current_condition == "CRITICAL":
         event_type = "CRITICAL"
 
     elif current_condition == "WARNING":
@@ -345,9 +335,8 @@ def save_event(data, previous_condition):
         "Condition": current_condition,
 
         # Actual readings at the transition.
-        "Temperature": float(data["temperature"]),
-        "Humidity": float(data["humidity"]),
-        "Vibration": float(data.get("vibration") or 0),
+        "SensorFault": bool(data.get("sensor_fault", False)),
+        "SensorHealth": str(data.get("sensor_health", "OK")),
 
         # Equipment operating state.
         "SensorCondition": str(
@@ -372,6 +361,11 @@ def save_event(data, previous_condition):
         "UptimeMs": int(data.get("uptime_ms") or 0),
     })
 
+    for field, column in (("temperature", "Temperature"),
+                          ("humidity", "Humidity"),
+                          ("vibration", "Vibration")):
+        if data.get(field) is not None:
+            entity[column] = float(data[field])
     return upload_entity(entity)
 
 

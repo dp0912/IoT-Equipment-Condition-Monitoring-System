@@ -106,31 +106,48 @@ def _enqueue(subject, body):
         logger.error("[EMAIL] Queue full; notification dropped")
 
 
-def send_equipment_alert(device_id, severity, previous_condition=None,
-                         temperature=None, humidity=None, vibration=None,
-                         timestamp=None):
-    """Notify on equipment WARNING, CRITICAL, and RECOVERY transitions."""
+def send_equipment_alert(
+    device_id,
+    severity,
+    previous_condition=None,
+    temperature=None,
+    humidity=None,
+    vibration=None,
+    timestamp=None,
+    equipment_type=None,
+):
+    """Send equipment-specific WARNING, CRITICAL or RECOVERY email."""
+
     severity = str(severity).upper()
-    subjects = {
-        "WARNING": "WARNING - IoT Equipment Alert",
-        "CRITICAL": "CRITICAL - IoT Equipment Alert",
-        "RECOVERY": "RECOVERY - IoT Equipment Back to Normal",
-    }
-    if severity not in subjects:
+    equipment = str(equipment_type or "UNKNOWN").upper()
+
+    if severity not in ("WARNING", "CRITICAL", "RECOVERY"):
         return
+
+    if severity == "RECOVERY":
+        subject = f"RECOVERY - {equipment} - Equipment Back to Normal"
+        current_condition = "NORMAL"
+    else:
+        subject = f"{severity} - {equipment} - Equipment Alert"
+        current_condition = severity
+
     at = timestamp or datetime.now(timezone.utc).isoformat()
+
     body = (
         "IoT EQUIPMENT CONDITION MONITORING SYSTEM\n"
         "-----------------------------------------\n"
         f"Alert: {severity}\n"
+        f"Equipment: {equipment}\n"
         f"Device: {device_id}\n"
         f"Previous Condition: {previous_condition or 'N/A'}\n"
+        f"Current Condition: {current_condition}\n"
         f"Temperature: {temperature if temperature is not None else 'N/A'} C\n"
         f"Humidity: {humidity if humidity is not None else 'N/A'} %\n"
-        f"Vibration: {vibration if vibration is not None else 'N/A'}\n"
+        f"Vibration: {vibration if vibration is not None else 'N/A'} RMS\n"
         f"Time: {at}\n"
     )
-    _enqueue(subjects[severity], body)
+
+    _enqueue(subject, body)
 
 
 def send_connectivity_alert(device_id, status, timestamp=None):

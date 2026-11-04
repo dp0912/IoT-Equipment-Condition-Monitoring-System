@@ -14,16 +14,28 @@ ENDPOINTS:
 
 SECURITY:
     Runs on localhost only.
-    Reads Azure records without modifying them.
+    Azure history routes remain read-only.
+    Authorized ESP32 control routes share this same Flask server and process;
+    there is no additional web server or startup command.
 """
 
 from datetime import date, datetime, timezone
-from flask import Flask, jsonify, request
+from pathlib import Path
+import sys
+from flask import jsonify, request
+
+# Running python backend/azure/history_api.py puts azure/ in sys.path, not the
+# repository root; add the root so the sibling backend.api module can be found.
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from query_history import get_table_client, query_history
+from backend.api import control_api
 
-
-app = Flask(__name__)
+# One Flask server on 127.0.0.1:5001 owns both Azure history and secured
+# Grafana controls. There is deliberately no control web service on port 5002.
+app = control_api.app
 
 
 # --------------------------------------------------
@@ -72,15 +84,6 @@ def format_record(record, record_type):
 # --------------------------------------------------
 # Health check.
 # --------------------------------------------------
-
-@app.route("/api/health")
-def health():
-
-    return jsonify({
-        "status": "OK",
-        "service": "IoT Historical Data API",
-    })
-
 
 # --------------------------------------------------
 # Shared Azure history retrieval.
@@ -193,11 +196,18 @@ if __name__ == "__main__":
     print("IoT Historical Azure Data API")
     print("Host: 127.0.0.1")
     print("Port: 5001")
-    print("Mode: Read-only")
+    print("Mode: Azure history + authorized Grafana equipment controls")
     print("--------------------------------------")
 
-    app.run(
-        host="127.0.0.1",
-        port=5001,
-        debug=False,
-    )
+    # Control MQTT starts in-process; invalid/missing control secrets fail closed
+    # and do not stop the existing historical dashboard from working.
+    control_api.start_control_mqtt()
+    try:
+        app.run(
+            host="127.0.0.1",
+            port=5001,
+            debug=False,
+            threaded=True,
+        )
+    finally:
+        control_api.stop_control_mqtt()

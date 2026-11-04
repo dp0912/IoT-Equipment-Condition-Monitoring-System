@@ -3,18 +3,25 @@
 
 # ⚙️ IoT Equipment Condition Monitoring System
 
-### Smart Industrial IoT Monitoring with ESP32, Azure, Grafana & Machine Learning
+### Intelligent Edge Monitoring • Cloud Analytics • Machine Learning
 
-**A configurable end-to-end IoT system for real-time equipment monitoring, anomaly detection, cloud analytics, and intelligent alerting.**
+**A configurable end-to-end Industrial IoT prototype for real-time equipment monitoring, anomaly detection, historical analytics, and automated alerting.**
+
+<br>
 
 ![ESP32](https://img.shields.io/badge/ESP32-Edge%20Computing-E7352C?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-Backend-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![MQTT](https://img.shields.io/badge/MQTT-Communication-660066?style=for-the-badge)
+![MQTT](https://img.shields.io/badge/MQTT-Mosquitto-660066?style=for-the-badge)
 ![Azure](https://img.shields.io/badge/Microsoft%20Azure-Cloud-0078D4?style=for-the-badge)
-![Grafana](https://img.shields.io/badge/Grafana-Dashboard-F46800?style=for-the-badge&logo=grafana&logoColor=white)
-![ML](https://img.shields.io/badge/Scikit--learn-Anomaly%20Detection-F7931E?style=for-the-badge)
+![Grafana](https://img.shields.io/badge/Grafana-Visualization-F46800?style=for-the-badge&logo=grafana&logoColor=white)
+![Scikit-learn](https://img.shields.io/badge/Scikit--learn-Machine%20Learning-F7931E?style=for-the-badge)
 
-**[Architecture](#-system-architecture) · [Dashboard](#-live-monitoring-dashboard) · [Features](#-key-features) · [Setup](#-quick-start)**
+<br>
+
+![Status](https://img.shields.io/badge/Status-Prototype%20%7C%20Integration%20Testing-yellow)
+![University](https://img.shields.io/badge/Ontario%20Tech%20University-SOFE%204610U-003DA5)
+
+**[Overview](#-overview) • [Architecture](#-system-architecture) • [Features](#-key-features) • [Dashboard](#-grafana-dashboard) • [Installation](#-getting-started)**
 
 </div>
 
@@ -22,93 +29,46 @@
 
 ## 📖 Overview
 
-The **IoT Equipment Condition Monitoring System** is an Industrial IoT prototype developed for SOFE 4610U — Design of IoT at Ontario Tech University.
+The **IoT Equipment Condition Monitoring System** is an end-to-end Industrial IoT prototype developed for **SOFE 4610U — Design of IoT** at Ontario Tech University.
 
-It combines **embedded sensing, MQTT messaging, Python processing, Microsoft Azure, Grafana visualization, and machine learning** to monitor equipment conditions and provide actionable alerts.
+The system combines **ESP32 edge computing, MQTT communication, Python services, Microsoft Azure, Grafana, and Isolation Forest machine learning** to transform real-time sensor measurements into actionable equipment insights.
 
-An ESP32 continuously collects temperature, humidity, and vibration measurements, evaluates configurable thresholds locally, and publishes live telemetry through MQTT.
+An ESP32 collects temperature, humidity, and vibration measurements, evaluates configurable thresholds locally, and publishes telemetry through an MQTT broker. A Python backend processes incoming data, handles historical storage and notifications, and provides anomaly detection and authenticated operator configuration.
 
-The Python backend handles cloud storage, anomaly detection, equipment alerts, and remote operator commands.
+### Supported Equipment Profiles
 
-The system supports **eight configurable equipment profiles**:
+The system includes eight selectable equipment monitoring profiles:
 
 `MOTOR` · `PUMP` · `COMPRESSOR` · `FAN` · `CONDENSER` · `HEAT_EXCHANGER` · `AHU` · `CHILLER`
 
-> The current prototype uses one ESP32 with selectable equipment profiles. It monitors simulated equipment contexts rather than physically controlling eight machines.
+> **Project scope:** One ESP32 monitors one selected equipment profile at a time. These profiles simulate different monitoring contexts; the prototype does not physically operate industrial machinery.
 
 ---
 
 ## 🏗️ System Architecture
 
-A layered architecture separates edge processing, communication, backend services, cloud storage, and operator visualization.
+The architecture separates sensor acquisition, local processing, cloud storage, and visualization into four integrated layers.
 
-```mermaid
-flowchart LR
-    subgraph EDGE["🔌 EDGE DEVICE"]
-        direction TB
-        S["DHT11<br/>MPU6050 / MPU6500"]
-        E["ESP32-WROOM-32<br/>Local Threshold Evaluation"]
-        I["LEDs · Buzzer · Button"]
-        S --- E
-        E --- I
-    end
+<div align="center">
 
-    subgraph MQTT["📡 COMMUNICATION"]
-        direction TB
-        B["Mosquitto<br/>MQTT Broker"]
-    end
+<img src="docs/images/system-architecture.png" alt="IoT Equipment Condition Monitoring System Architecture" width="100%">
 
-    subgraph SERVICES["⚙️ PYTHON SERVICES"]
-        direction TB
-        P["MQTT Subscriber<br/>Data Validation"]
-        A["Telemetry Aggregation"]
-        ML["Isolation Forest<br/>Anomaly Detection"]
-        N["Email Alerts"]
-        API["Flask APIs<br/>History + Operator Control"]
-        P --- A
-        A --- ML
-        P --- N
-        P --- API
-    end
+<sub>Four-layer IoT architecture: Edge Device → Local Services → Azure Cloud → Visualization & Alerts</sub>
 
-    subgraph CLOUD["☁️ CLOUD"]
-        direction TB
-        AZ["Azure Table Storage<br/>Summaries + Events"]
-    end
+</div>
 
-    subgraph UI["📊 OPERATOR"]
-        direction TB
-        G["Grafana Dashboard"]
-        C["Authenticated Controls"]
-        G --- C
-    end
+### Architecture Layers
 
-    E <-->|Telemetry / Commands| B
-    B <--> P
-    B --> G
-    A --> AZ
-    AZ --> API
-    API <--> C
-    ML --> B
+| Layer | Technology | Responsibility |
+|---|---|---|
+| **Edge Layer** | ESP32, DHT11, MPU6050/MPU6500 | Sensor acquisition, validation, local condition classification, LEDs, buzzer |
+| **Local Services** | Mosquitto, Python, Flask, Scikit-learn | MQTT messaging, processing, aggregation, ML inference, operator commands, email alerts |
+| **Cloud Layer** | Microsoft Azure Table Storage | Persistent telemetry summaries and equipment events |
+| **Visualization & Alerts** | Grafana, SMTP | Live monitoring, historical analysis, remote configuration, notifications |
 
-    classDef edge fill:#173b55,stroke:#38bdf8,color:#ffffff,stroke-width:1.5px;
-    classDef broker fill:#43305b,stroke:#c084fc,color:#ffffff,stroke-width:1.5px;
-    classDef service fill:#173e39,stroke:#34d399,color:#ffffff,stroke-width:1.5px;
-    classDef cloud fill:#173f69,stroke:#60a5fa,color:#ffffff,stroke-width:1.5px;
-    classDef ui fill:#573b20,stroke:#fbbf24,color:#ffffff,stroke-width:1.5px;
+**Data flow:** ESP32 → MQTT Broker → Python Services → Azure / ML → Grafana & Email Notifications.
 
-    class S,E,I edge;
-    class B broker;
-    class P,A,ML,N,API service;
-    class AZ cloud;
-    class G,C ui;
-```
-
-**Edge:** Real-time sensor processing and local alarms.  
-**MQTT:** Lightweight bidirectional device communication.  
-**Backend:** Processing, aggregation, notifications, ML, and authenticated APIs.  
-**Azure:** Persistent historical telemetry and event storage.  
-**Grafana:** Live monitoring, historical analysis, and operator configuration.
+**Operator control:** Grafana → Authenticated Flask API → MQTT Commands → ESP32 → Command Acknowledgement.
 
 ---
 
@@ -116,86 +76,105 @@ flowchart LR
 
 | Feature | Description |
 |---|---|
-| 📡 **Real-Time Monitoring** | Temperature, humidity, and vibration telemetry every ~2.5 seconds |
-| 🚦 **Condition Detection** | NORMAL, WARNING, and CRITICAL classification at the ESP32 |
-| 🔔 **Local Alerts** | Three status LEDs, audible buzzer, and physical acknowledgement button |
-| 🏭 **Equipment Profiles** | Eight selectable profiles with configurable sensor thresholds |
-| 🎛️ **Operator Controls** | Authenticated profile and threshold updates with ESP32 acknowledgement |
-| ☁️ **Cloud Storage** | Azure Table Storage for historical summaries and condition events |
-| 🤖 **AI/ML Detection** | Isolation Forest inference on aggregated sensor readings |
-| 📧 **Email Notifications** | WARNING, CRITICAL, RECOVERY, and connectivity notifications |
-| 📊 **Grafana Visualization** | Live dashboard, sensor health, alerts, ML results, and Azure history |
-| 💾 **Persistent Settings** | Active thresholds and profile survive ESP32 restarts |
+| 📡 **Real-Time Monitoring** | Temperature, humidity, and vibration measurements approximately every 2.5 seconds |
+| 🚦 **Edge-Based Detection** | NORMAL, WARNING, and CRITICAL condition classification |
+| 🔔 **Local Alerts** | Green/yellow/red LEDs, audible buzzer, and physical acknowledgement button |
+| 🏭 **Equipment Profiles** | Eight selectable profiles with customizable monitoring thresholds |
+| 🎛️ **Remote Configuration** | Authenticated Grafana controls with ESP32 command acknowledgement |
+| 💾 **Persistent Settings** | Equipment profile and thresholds saved across ESP32 restarts |
+| ☁️ **Azure Integration** | Historical sensor summaries and condition events in Azure Table Storage |
+| 🤖 **ML Anomaly Detection** | Isolation Forest analysis on aggregated telemetry |
+| 📧 **Email Alerts** | Equipment-specific WARNING, CRITICAL, RECOVERY, and connectivity notifications |
+| 📊 **Grafana Dashboard** | Live monitoring, diagnostics, ML results, historical trends, and configuration |
 
 ---
 
-## 📊 Live Monitoring Dashboard
+## 📊 Grafana Dashboard
 
-The Grafana dashboard provides a single operator interface for monitoring and controlling the system.
+A centralized Grafana interface provides real-time equipment visibility, condition monitoring, historical analytics, and operator configuration.
 
 <div align="center">
 
-<img src="docs/images/grafana-dashboard.png" alt="IoT Equipment Condition Monitoring Grafana Dashboard" width="95%">
+<img src="docs/images/grafana-dashboard.png" alt="IoT Equipment Condition Monitoring Dashboard" width="100%">
 
-<sub>Grafana — Live MQTT telemetry, equipment condition, alerts, and historical monitoring</sub>
+<sub>Illustrative dashboard showcase based on the implemented monitoring and configuration features.</sub>
 
 </div>
 
-### Dashboard Capabilities
+### Monitoring & Visualization
 
-| Monitoring | Analytics & Control |
-|---|---|
-| Live temperature, humidity and vibration | AI/ML anomaly status |
-| Equipment condition and connectivity | Azure historical sensor trends |
-| Latest sensor readings | Historical equipment alerts |
-| Sensor health and fault detection | Confirmed threshold configuration |
-| Equipment WARNING / CRITICAL alerts | Operator login and equipment profile selection |
-| Audible alarm acknowledgement status | Remote threshold updates |
+- **Live Telemetry:** Temperature, humidity, vibration RMS, and equipment condition.
+- **Sensor Diagnostics:** DHT11 and MPU sensor validity, device connectivity, and fault detection.
+- **Equipment Alerts:** WARNING, CRITICAL, and RECOVERY events.
+- **Historical Analytics:** Azure-backed sensor trends and condition history.
+- **AI/ML:** Isolation Forest anomaly status and anomaly score.
 
-The dashboard uses **Grafana MQTT and Infinity data sources**, along with Business Forms and Dynamic Text plugins.
+### Configuration & Control
 
-**[View Dashboard Configuration](dashboard/grafana/iot-equipment-live-dashboard.json)**
+- Authenticated operator login.
+- Temperature and humidity upper/lower thresholds.
+- Vibration warning and critical thresholds.
+- Eight selectable equipment profiles.
+- ESP32-confirmed configuration and audible alarm status.
+
+The dashboard integrates **Grafana MQTT and Infinity data sources**, **Business Forms**, and **Dynamic Text**.
+
+**[Explore the Grafana Dashboard Configuration](dashboard/grafana/iot-equipment-live-dashboard.json)**
 
 ---
 
-## 🔧 Hardware Configuration
+## 🔧 Hardware & Edge Processing
 
-| Component | ESP32 GPIO | Purpose |
+### Hardware Components
+
+| Component | ESP32 GPIO | Function |
 |---|---|---|
-| DHT11 | 27 | Temperature and humidity |
-| MPU6050/MPU6500 SDA | 21 | I²C data |
-| MPU6050/MPU6500 SCL | 22 | I²C clock |
-| Green LED | 25 | NORMAL |
-| Yellow LED | 26 | WARNING |
-| Red LED | 33 | CRITICAL |
-| Push Button | 13 | Alarm acknowledgement |
-| Active Buzzer | 23 | Critical audible alert |
+| DHT11 | GPIO 27 | Ambient temperature and humidity |
+| MPU6050/MPU6500 SDA | GPIO 21 | I²C data |
+| MPU6050/MPU6500 SCL | GPIO 22 | I²C clock |
+| Green LED | GPIO 25 | NORMAL indication |
+| Yellow LED | GPIO 26 | WARNING indication |
+| Red LED | GPIO 33 | CRITICAL indication |
+| Push Button | GPIO 13 | Alarm acknowledgement |
+| Active Buzzer | GPIO 23 | Audible critical alarm |
 
-The ESP32 evaluates sensor readings locally and activates the corresponding status LED.
+### Condition Monitoring
 
-During a CRITICAL condition, the buzzer repeats a **200 ms ON / 800 ms OFF** pattern. The physical button silences the buzzer without changing the detected equipment condition.
+The ESP32 classifies sensor readings using configurable thresholds.
 
-> The active buzzer must be electrically compatible with ESP32 GPIO output or connected through a suitable driver circuit.
+| Condition | Edge Response |
+|---|---|
+| 🟢 **NORMAL** | Green LED |
+| 🟡 **WARNING** | Yellow LED |
+| 🔴 **CRITICAL** | Red LED and repeating audible alarm |
 
-**[Full Wiring Documentation](docs/wiring/esp32_wiring.md)**
+Temperature and humidity are checked against upper and lower thresholds. Vibration is checked against upper thresholds.
+
+The buzzer uses a **200 ms ON / 800 ms OFF** pattern. Pressing the acknowledgement button silences the sound while preserving the actual equipment condition.
+
+**[View Hardware & Wiring Documentation](docs/wiring/esp32_wiring.md)**
 
 ---
 
 ## 📡 MQTT Communication
 
-The monitoring device publishes data using the identifier `ESP32-001`.
+The ESP32 communicates with the Python backend and Grafana through an authenticated Mosquitto MQTT broker.
+
+The current monitoring device identifier is `ESP32-001`.
+
+### MQTT Topics
 
 | Topic | Purpose |
 |---|---|
-| `equipment/ESP32-001/telemetry` | Live sensor measurements |
-| `equipment/ESP32-001/status` | Online/offline state |
-| `equipment/ESP32-001/config` | Confirmed thresholds and profile |
+| `equipment/ESP32-001/telemetry` | Live sensor readings and condition |
+| `equipment/ESP32-001/status` | Device online/offline status |
+| `equipment/ESP32-001/config` | Confirmed equipment profile and thresholds |
 | `equipment/ESP32-001/sensor_health` | Sensor diagnostics |
-| `equipment/ESP32-001/control_status` | Condition and buzzer state |
-| `equipment/ESP32-001/commands` | Operator commands |
-| `equipment/ESP32-001/command_ack` | Command confirmations |
-| `equipment/ESP32-001/alerts` | Equipment alerts |
-| `equipment/ESP32-001/ml` | Machine-learning results |
+| `equipment/ESP32-001/control_status` | Equipment and audible alarm state |
+| `equipment/ESP32-001/commands` | Operator configuration commands |
+| `equipment/ESP32-001/command_ack` | Applied/rejected command acknowledgements |
+| `equipment/ESP32-001/alerts` | Equipment condition events |
+| `equipment/ESP32-001/ml` | Machine-learning inference results |
 
 ### Example Telemetry
 
@@ -203,9 +182,9 @@ The monitoring device publishes data using the identifier `ESP32-001`.
 {
   "device_id": "ESP32-001",
   "profile": "MOTOR",
-  "temperature": 26.7,
-  "humidity": 63.0,
-  "vibration": 0.052,
+  "temperature": 24.8,
+  "humidity": 60.0,
+  "vibration": 0.062,
   "condition": "NORMAL",
   "dht_valid": true,
   "vibration_valid": true,
@@ -213,48 +192,87 @@ The monitoring device publishes data using the identifier `ESP32-001`.
 }
 ```
 
-Sensor validity fields allow the backend to distinguish missing readings from normal measurements.
+MQTT messaging enables bidirectional communication for telemetry, configuration changes, and command acknowledgements.
 
 ---
 
-## 🤖 Machine Learning & Cloud Analytics
+## 🤖 Machine Learning & Azure
 
-The backend aggregates valid sensor readings into approximately **30-second windows**.
+### AI/ML Anomaly Detection
 
-**Isolation Forest** provides an additional anomaly-detection layer alongside the ESP32's rule-based threshold evaluation.
+The Python backend aggregates valid telemetry into approximately **30-second windows** and processes it using an **Isolation Forest** model.
 
-Aggregated measurements and equipment events are stored in **Azure Table Storage**. A Flask history API exposes this data to Grafana for date-range-based analysis.
+The ML subsystem supplements rule-based condition classification with anomaly detection.
 
-Machine-learning predictions are published over MQTT for live visualization.
+**ML Pipeline:**
 
-**ML outputs are experimental indicators rather than verified industrial fault diagnoses.**
+`Sensor Data → Validation → Aggregation → Feature Extraction → Isolation Forest → MQTT Results → Grafana`
+
+### Cloud Historical Analytics
+
+Microsoft Azure Table Storage stores historical monitoring information, including:
+
+- **SUMMARY:** Aggregated temperature, humidity, and vibration records.
+- **EVENT:** Equipment condition changes, alerts, and recovery events.
+
+The Flask History API exposes records to Grafana using HTTP/JSON, allowing users to analyze historical trends over selected date ranges.
+
+> ML results are experimental anomaly indicators, not validated industrial fault diagnoses.
 
 ---
 
-## 📧 Intelligent Alerting
+## 📧 Automated Alerts
 
-Operators receive equipment-specific notifications when monitored conditions change.
+The Python notification service sends equipment-specific alerts through SMTP.
 
-| Alert | Description |
+| Alert Type | Trigger |
 |---|---|
-| ⚠️ WARNING | Measurements enter warning range |
+| ⚠️ WARNING | Warning threshold reached |
 | 🚨 CRITICAL | Critical threshold reached |
-| ✅ RECOVERY | Equipment returns to normal |
+| ✅ RECOVERY | Equipment returns to NORMAL |
 | 📶 OFFLINE / ONLINE | Device connectivity changes |
 
-Example subject:
+**Example Email:**
 
 ```text
-RECOVERY - MOTOR - Equipment Back to Normal
+Subject: RECOVERY - MOTOR - Equipment Back to Normal
+
+IoT EQUIPMENT CONDITION MONITORING SYSTEM
+-----------------------------------------
+
+Alert: RECOVERY
+Equipment: MOTOR
+Device: ESP32-001
+Previous Condition: CRITICAL
+Current Condition: NORMAL
+
+Temperature: 26.7 C
+Humidity: 63.0 %
+Vibration: 0.2131 RMS
 ```
 
-Messages include the equipment profile, ESP32 device ID, sensor measurements, condition information, and timestamp.
-
-The backend uses SMTP with configurable notification settings.
+Equipment names are dynamically included in condition-alert emails based on the selected monitoring profile.
 
 ---
 
-## 🚀 Quick Start
+## 🛠️ Technology Stack
+
+| Category | Technology |
+|---|---|
+| Embedded System | ESP32-WROOM-32, Arduino C++ |
+| Sensors | DHT11, MPU6050/MPU6500 |
+| Communication | MQTT, Eclipse Mosquitto |
+| Backend | Python, Paho MQTT |
+| APIs | Flask |
+| Cloud Storage | Microsoft Azure Table Storage |
+| Visualization | Grafana |
+| Machine Learning | Scikit-learn, Isolation Forest |
+| Notifications | SMTP |
+| Development | VS Code, Arduino IDE, Git, GitHub |
+
+---
+
+## 🚀 Getting Started
 
 ### 1. Clone the Repository
 
@@ -263,32 +281,30 @@ git clone https://github.com/dp0912/IoT-Equipment-Condition-Monitoring-System.gi
 cd IoT-Equipment-Condition-Monitoring-System
 ```
 
-### 2. Configure Python
+### 2. Set Up the Python Environment
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` with your MQTT, Azure, operator authentication, and optional SMTP settings.
+Configure the local `.env` file with your MQTT, Azure, operator authentication, and optional email settings.
 
 ### 3. Upload ESP32 Firmware
 
-Open:
+Open the Arduino sketch:
 
 ```text
 firmware/esp32/equipment_monitor/equipment_monitor.ino
 ```
 
-Create a local `secrets.h` containing your Wi-Fi and MQTT credentials. Install the DHT, PubSubClient, and ArduinoJson libraries in Arduino IDE.
+Create a local `secrets.h` with Wi-Fi and MQTT credentials. Install the required Arduino libraries, select **ESP32 Dev Module**, and upload the firmware.
 
-Select **ESP32 Dev Module** and upload the sketch.
+### 4. Start Local Services
 
-### 4. Start Services
-
-Start your configured Mosquitto broker:
+Start Mosquitto:
 
 ```bash
 brew services start mosquitto
@@ -300,7 +316,7 @@ Start the Python MQTT subscriber:
 python backend/mqtt/subscriber.py
 ```
 
-In another terminal, start the Flask history/control API:
+In a second terminal, start the History / Control API:
 
 ```bash
 python backend/azure/history_api.py
@@ -318,36 +334,42 @@ Open **http://localhost:3000** and import:
 dashboard/grafana/iot-equipment-live-dashboard.json
 ```
 
-Configure the required data sources and plugins for your environment.
+Configure Grafana data sources and install the required plugins.
+
+> These service commands describe the local macOS/Homebrew development environment. Cloud credentials, MQTT authentication, and SMTP settings must be configured separately.
 
 ---
 
-## 📁 Project Structure
+## 📁 Repository Structure
 
 ```text
 IoT-Equipment-Condition-Monitoring-System/
 │
 ├── backend/
-│   ├── api/                 # Operator control API
-│   ├── mqtt/                # Subscriber and aggregation
-│   ├── azure/               # Cloud storage and history
-│   └── notifications/       # Email alerting
+│   ├── api/              # Authenticated operator controls
+│   ├── mqtt/             # MQTT subscriber and aggregation
+│   ├── azure/            # Azure storage and history API
+│   └── notifications/    # Equipment email alerts
 │
 ├── firmware/
-│   └── esp32/               # ESP32 Arduino firmware
+│   └── esp32/            # ESP32 Arduino firmware
 │
 ├── dashboard/
-│   └── grafana/             # Dashboard JSON export
+│   └── grafana/          # Grafana dashboard JSON
 │
 ├── ml/
-│   ├── training/            # Isolation Forest training
-│   ├── inference/           # ML inference
-│   └── models/              # Saved model
+│   ├── training/         # Isolation Forest training
+│   ├── inference/        # ML inference
+│   └── models/           # Trained model
 │
-├── docs/                    # Architecture, wiring, testing
-├── hardware/                # Component documentation
-├── tests/                   # Automated checks
+├── docs/
+│   ├── architecture/     # Architecture documentation
+│   ├── images/           # System and dashboard visuals
+│   ├── testing/          # Validation documentation
+│   └── wiring/           # ESP32 hardware wiring
 │
+├── hardware/
+├── tests/
 ├── .env.example
 ├── requirements.txt
 └── README.md
@@ -357,29 +379,34 @@ IoT-Equipment-Condition-Monitoring-System/
 
 ## 🧪 Testing & Validation
 
-The repository includes structural checks for firmware functionality, dashboard integrity, and equipment-specific alerts.
+The repository includes structural tests covering monitoring-only firmware, dashboard configuration, and equipment-specific notifications.
+
+Run the automated tests:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-Additional integration tests cover sensor monitoring, threshold configuration, buzzer acknowledgement, MQTT connectivity, Azure history, and notifications.
+Validate Python modules:
 
-**[Validation Documentation](docs/testing/current_validation.md)**
+```bash
+python -m compileall -q backend ml
+```
 
-The system is a functional educational prototype under integration testing. It is not a safety-certified industrial monitoring or shutdown system.
+**[View Testing & Validation Documentation](docs/testing/current_validation.md)**
+
+The system is an educational prototype under integration testing. It is not intended as a safety-certified industrial control system.
 
 ---
 
 ## 🔮 Future Enhancements
 
-- Multi-ESP32 deployment with equipment IDs such as `FAN-01`, `FAN-02`, and `MOTOR-01`.
-- MQTT over TLS and stronger device authentication.
-- Dedicated industrial-grade sensors and calibrated thresholds.
-- Equipment-specific ML models and improved fault diagnostics.
-- SMS notifications and alert escalation.
-- Containerized services and automated CI/CD deployment.
-- Fleet-level Grafana monitoring and cloud scalability.
+- **Multi-Device Monitoring:** Dedicated ESP32 devices for equipment instances such as `MOTOR-01`, `FAN-01`, and `FAN-02`.
+- **Secure Connectivity:** MQTT over TLS and individual device credentials.
+- **Advanced ML:** Equipment-specific anomaly models and fault diagnostics.
+- **SMS Alerts:** Critical-condition text notifications and escalation.
+- **Cloud Scalability:** Containerization, automated deployment, and expanded Azure integration.
+- **Fleet Dashboards:** Multi-equipment monitoring and centralized analytics.
 
 ---
 
@@ -395,8 +422,8 @@ SOFE 4610U — Design of IoT | Fall 2026
 
 ---
 
-### Built with ESP32 · Python · MQTT · Microsoft Azure · Grafana · Scikit-learn
+### Built with ESP32 • Python • MQTT • Microsoft Azure • Grafana • Scikit-learn
 
-*Transforming real-time sensor data into actionable equipment insights.*
+*From real-time sensor acquisition to intelligent equipment monitoring.*
 
 </div>

@@ -84,7 +84,9 @@ The system uses a four-layer architecture separating edge processing, MQTT commu
 | 🚦 **Condition Detection** | Edge-based NORMAL, WARNING, and CRITICAL classification |
 | 🔔 **Local Alerts** | Green/yellow/red LEDs, audible buzzer, and acknowledgement button |
 | 🏭 **Equipment Profiles** | Eight selectable equipment profiles with configurable thresholds |
-| 🎛️ **Remote Configuration** | Authenticated Grafana controls with ESP32 command confirmation |
+| 🔐 **Operator Authentication** | Dedicated Sign In / Sign Out controls and session status |
+| 🎛️ **Remote Configuration** | Authenticated threshold and profile changes with ESP32 command confirmation |
+| 🔒 **Access Protection** | Flask sessions, CSRF protection, and restricted configuration endpoints |
 | 💾 **Persistent Configuration** | Equipment profiles and thresholds retained after restart |
 | ☁️ **Azure Integration** | Historical sensor summaries and equipment events |
 | 🤖 **ML Anomaly Detection** | Isolation Forest inference on aggregated telemetry |
@@ -112,11 +114,97 @@ The Grafana dashboard provides a centralized interface for monitoring equipment 
 | Temperature, humidity, and vibration | Azure historical sensor trends |
 | Equipment condition and connectivity | Historical equipment alerts |
 | Latest sensor readings | Isolation Forest anomaly status |
-| Sensor health and alarm state | Operator authentication |
+| Sensor health and alarm state | Operator Sign In / Sign Out |
 | Equipment alerts | Configurable thresholds |
 | Live sensor trends | Eight selectable equipment profiles |
 
-The dashboard uses **Grafana MQTT and Infinity data sources**, **Business Forms**, and **Dynamic Text** plugins.
+### 🔐 Operator Authentication & Access Control
+
+The dashboard includes an operator authentication system that is separate from Grafana's own user login.
+
+Operators must authenticate before applying configuration changes to the ESP32.
+
+The **Operator Access** panel provides:
+
+- **Username and Password:** Credentials for authorized operators.
+- **Sign in:** Authenticates the operator through the Flask backend.
+- **Sign out:** Ends the active operator session.
+- **Session Status:** Displays `SIGNED IN`, `SIGNED OUT`, or an API availability state.
+
+#### Operator Permissions
+
+| Function | Signed Out | Signed In |
+|---|---|---|
+| View live sensor readings | ✅ Allowed | ✅ Allowed |
+| View equipment condition | ✅ Allowed | ✅ Allowed |
+| View historical Azure data | ✅ Allowed | ✅ Allowed |
+| View alerts and sensor health | ✅ Allowed | ✅ Allowed |
+| Change temperature thresholds | 🔒 Restricted | ✅ Allowed |
+| Change humidity thresholds | 🔒 Restricted | ✅ Allowed |
+| Change vibration thresholds | 🔒 Restricted | ✅ Allowed |
+| Change equipment profile | 🔒 Restricted | ✅ Allowed |
+| Access operator configuration API | 🔒 Restricted | ✅ Allowed |
+
+Dashboard viewing remains available to users who have permission to access Grafana. Operator authentication controls the separate equipment-configuration API.
+
+#### Authentication Workflow
+
+**1. Signed Out**
+
+The operator session is inactive. Sensor readings, equipment conditions, alerts, and historical data remain available.
+
+Configuration requests are rejected by the Flask backend until the operator signs in.
+
+**2. Sign In**
+
+An operator enters their credentials and selects **Sign in**.
+
+The Flask API validates the credentials and establishes an authenticated session.
+
+The dashboard displays the authenticated operator status.
+
+**3. Configuration Changes**
+
+Once authenticated, the operator can modify threshold values or select an equipment monitoring profile.
+
+The command is sent through the Flask backend using MQTT.
+
+The dashboard reports successful application only after receiving the matching ESP32 acknowledgement.
+
+**4. Sign Out**
+
+The operator selects **Sign out** to terminate the authenticated session.
+
+The dashboard returns to `SIGNED OUT`, and subsequent configuration requests are denied until the operator authenticates again.
+
+**5. Session Expiration**
+
+Operator sessions also have a backend-enforced security timeout. This provides additional protection if an operator leaves the dashboard without manually signing out.
+
+#### Authentication Security
+
+The control system uses:
+
+- Environment-based operator credentials stored outside the repository.
+- Flask session cookies.
+- CSRF protection for configuration-changing requests.
+- Operator authentication checks on protected API endpoints.
+- Login attempt rate limiting.
+- Explicit Sign Out functionality.
+- ESP32 command acknowledgement before reporting success.
+
+Operator credentials are not stored in the exported Grafana dashboard JSON.
+
+The control API is intended for local development and should not be exposed directly to the public internet without additional production security controls.
+
+### Grafana Technologies
+
+The dashboard uses:
+
+- **Grafana MQTT Data Source** for live telemetry.
+- **Infinity Data Source** for historical Azure information through Flask.
+- **Business Forms** for operator authentication and configuration.
+- **Dynamic Text** for customized equipment, sensor, and anomaly status displays.
 
 **[View Grafana Dashboard JSON](dashboard/grafana/iot-equipment-live-dashboard.json)**
 
@@ -194,6 +282,8 @@ The current device identifier is `ESP32-001`.
 
 MQTT enables bidirectional communication between the ESP32 and the monitoring services.
 
+Operator commands are transmitted through the authenticated Flask API rather than directly from unauthenticated dashboard controls.
+
 ---
 
 ## 🤖 Machine Learning & Azure
@@ -218,6 +308,8 @@ Microsoft Azure Table Storage stores two types of monitoring records:
 - **EVENT:** Equipment condition changes and alert events.
 
 A Flask History API retrieves Azure records and serves them to Grafana for historical analysis.
+
+Historical measurements are displayed as individual points to avoid implying continuous monitoring across periods where data was not collected.
 
 > ML results are experimental indicators, not validated industrial fault diagnoses.
 
@@ -267,6 +359,7 @@ The selected equipment profile is included automatically in equipment-condition 
 | Communication | MQTT, Eclipse Mosquitto |
 | Backend | Python, Paho MQTT |
 | REST APIs | Flask |
+| Authentication | Flask Sessions, CSRF, CORS |
 | Cloud | Microsoft Azure Table Storage |
 | Dashboard | Grafana |
 | Machine Learning | Scikit-learn, Isolation Forest |
@@ -335,15 +428,19 @@ brew services start mosquitto
 
 ### 5. Start Python Backend
 
+Open a terminal with the virtual environment activated:
+
 ```bash
+source .venv/bin/activate
 python backend/mqtt/subscriber.py
 ```
 
 ### 6. Start History & Operator Control API
 
-Open a second terminal with the virtual environment activated:
+Open a separate terminal with the virtual environment activated:
 
 ```bash
+source .venv/bin/activate
 python backend/azure/history_api.py
 ```
 
@@ -352,6 +449,15 @@ The Flask API runs at:
 ```text
 http://127.0.0.1:5001
 ```
+
+The same Flask service provides:
+
+- Historical Azure data.
+- Operator session authentication.
+- Sign In / Sign Out endpoints.
+- Remote threshold configuration.
+- Equipment profile configuration.
+- ESP32 command acknowledgement.
 
 ### 7. Start Grafana
 
@@ -371,7 +477,21 @@ dashboard/grafana/iot-equipment-live-dashboard.json
 
 Configure the MQTT and Infinity data sources and required Grafana plugins.
 
-For detailed instructions, see the **[Operations & Testing Guide](docs/guides/02_OPERATIONS_AND_TESTING.md)**.
+### 8. Operator Sign In / Sign Out
+
+In the dashboard, navigate to **Configuration & Control → Operator Access**.
+
+1. Enter the configured operator credentials.
+2. Click **Sign in**.
+3. Verify that the operator status shows `SIGNED IN`.
+4. Apply an authorized threshold or equipment profile change.
+5. Verify the ESP32 acknowledgement.
+6. Click **Sign out** when finished.
+7. Confirm that the operator status shows `SIGNED OUT`.
+
+After Sign Out, configuration changes are blocked until the operator signs in again.
+
+For detailed setup and troubleshooting, see the **[Operations & Testing Guide](docs/guides/02_OPERATIONS_AND_TESTING.md)**.
 
 ---
 
@@ -393,7 +513,7 @@ IoT-Equipment-Condition-Monitoring-System/
 │   └── components.md
 │
 ├── backend/
-│   ├── api/                  # Operator controls
+│   ├── api/                  # Operator authentication and controls
 │   ├── mqtt/                 # Subscriber and aggregation
 │   ├── azure/                # Cloud storage and history
 │   └── notifications/        # Email alerts
@@ -427,6 +547,10 @@ IoT-Equipment-Condition-Monitoring-System/
 └── tests/
     └── test_monitoring_rebuild_contract.py
 ```
+
+---
+
+<div align="center">
 
 ### Built with ESP32 • Python • MQTT • Microsoft Azure • Grafana • Scikit-learn
 

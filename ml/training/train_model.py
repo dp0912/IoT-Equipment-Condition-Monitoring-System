@@ -47,7 +47,7 @@ from query_history import get_table_client
 DEVICE_ID = "ESP32-001"
 
 START_DATE = date(2026, 10, 10)
-END_DATE = date(2026, 10, 13)
+END_DATE = date(2026, 11, 5)
 
 FEATURES = [
     "TemperatureAvg",

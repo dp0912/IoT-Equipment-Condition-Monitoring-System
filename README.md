@@ -428,62 +428,6 @@ IoT-Equipment-Condition-Monitoring-System/
     └── test_monitoring_rebuild_contract.py
 ```
 
----
-
-## 🧪 Testing & Validation
-
-The repository includes automated structural tests for firmware configuration, dashboard integrity, and equipment-specific email notifications.
-
-### Run Tests
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-### Validate Python Modules
-
-```bash
-python -m compileall -q backend ml
-```
-
-### Validate Grafana JSON
-
-```bash
-python -m json.tool dashboard/grafana/iot-equipment-live-dashboard.json > /dev/null
-```
-
-Live hardware and service integration must also be tested for MQTT communication, configuration changes, alarms, Azure historical storage, ML inference, and email delivery.
-
-**[View Complete Operations & Testing Guide](docs/guides/02_OPERATIONS_AND_TESTING.md)**
-
-> This is an educational prototype under integration testing and is not a safety-certified industrial monitoring or control system.
-
----
-
-## 🔮 Future Enhancements
-
-- **Multi-Device Monitoring:** Support dedicated equipment instances such as `MOTOR-01`, `FAN-01`, and `FAN-02`.
-- **Secure Communication:** MQTT over TLS and individual device authentication.
-- **Advanced Machine Learning:** Equipment-specific models and fault diagnostics.
-- **SMS Notifications:** Critical alerts and escalation workflows.
-- **Cloud Deployment:** Containerized backend services and automated CI/CD.
-- **Fleet Monitoring:** Multi-equipment dashboards and scalable cloud analytics.
-
----
-
-## 👨‍💻 Developer
-
-**Dhruvin Patel**
-
-Software Engineering — Ontario Tech University  
-SOFE 4610U — Design of IoT | Fall 2026
-
-**GitHub:** [github.com/dp0912](https://github.com/dp0912)
-
-<div align="center">
-
----
-
 ### Built with ESP32 • Python • MQTT • Microsoft Azure • Grafana • Scikit-learn
 
 *Transforming real-time sensor measurements into intelligent equipment insights.*

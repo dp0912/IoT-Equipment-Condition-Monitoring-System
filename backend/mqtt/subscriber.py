@@ -7,7 +7,6 @@ PURPOSE:
     Receive ESP32 telemetry through MQTT and save:
     1. A statistical SUMMARY approximately every 30 seconds.
     2. An EVENT immediately when equipment condition changes.
-    3. Optional Azure Log Analytics telemetry.
 
     Also publish live dashboard messages:
     4. Equipment condition-change alerts.
@@ -22,16 +21,12 @@ DATA FLOW:
                                   |   - SUMMARY records
                                   |   - EVENT records
                                   |
-                                  +-> Azure Log Analytics (optional)
                                   |
                                   +-> Live MQTT Alerts
                                   +-> Live MQTT Connectivity
 
 IMPORTANT:
     FastAPI is NOT required.
-
-    Azure Log Analytics is disabled unless
-    AZURE_LOG_ANALYTICS_ENABLED=true in .env.
 
     The MQTT subscriber receives approximately one
     sensor message every 2 seconds.
@@ -101,14 +96,6 @@ from predict_anomaly import AnomalyDetector
 # Load once at startup, not for every incoming MQTT reading.
 anomaly_detector = AnomalyDetector()
 
-# Preserve the optional Log Analytics integration.
-from log_analytics import (
-    LOG_ANALYTICS_ENABLED,
-    prepare_telemetry,
-    upload_telemetry,
-)
-
-
 # ============================================================
 # STEP 3: Configure the existing MQTT connection.
 # ============================================================
@@ -159,20 +146,12 @@ connectivity_lock = threading.Lock()
 # Create a summary for each 30-second window.
 SUMMARY_INTERVAL_SECONDS = 30
 
-# Keep the previous optional Log Analytics interval.
-LOG_INTERVAL_SECONDS = 30
-
 # Each device receives its own aggregation window.
 aggregators = {}
 
 # Remember each device's last known equipment condition.
 last_seen_condition = {}
 last_seen_sensor_health = {}
-
-# Track Log Analytics uploads separately from Table Storage.
-last_logs_upload_time = {}
-last_logs_condition = {}
-
 
 # ============================================================
 # STEP 5: Queue Azure writes for retry.
@@ -343,76 +322,6 @@ def validate_telemetry(data):
     data['sensor_fault'] = fault
     data['sensor_health'] = 'FAULT' if fault else 'OK'
     return data
-
-
-# ============================================================
-# STEP 7: Handle optional Azure Log Analytics uploads.
-# ============================================================
-
-def maybe_upload_logs(data, now):
-    """
-    Preserve the existing Log Analytics integration.
-
-    This function does nothing when
-    AZURE_LOG_ANALYTICS_ENABLED=false.
-
-    Log Analytics uses independent upload timing.
-    """
-
-    if not LOG_ANALYTICS_ENABLED:
-        return
-
-    device_id = data["device_id"]
-
-    condition = data["condition"]
-
-    previous_time = last_logs_upload_time.get(
-        device_id
-    )
-
-    previous_condition = last_logs_condition.get(
-        device_id
-    )
-
-    # Upload on first reading, after 30 seconds,
-    # or when the equipment condition changes.
-    upload_needed = (
-        previous_time is None
-        or now - previous_time >= LOG_INTERVAL_SECONDS
-        or condition != previous_condition
-    )
-
-    if not upload_needed:
-        return
-
-    try:
-
-        success = upload_telemetry(data)
-
-        if success:
-
-            last_logs_upload_time[device_id] = now
-
-            last_logs_condition[device_id] = condition
-
-            print(
-                "[LOG ANALYTICS] "
-                "Upload confirmed by ingestion API"
-            )
-
-        else:
-
-            print(
-                "[LOG ANALYTICS] "
-                "Upload not completed"
-            )
-
-    except Exception as error:
-
-        print(
-            "[LOG ANALYTICS ERROR] "
-            f"{type(error).__name__}"
-        )
 
 
 # ============================================================
@@ -704,7 +613,6 @@ def on_message(client, userdata, message):
         5. Publish live condition-change alerts.
         6. Add readings to the statistics calculator.
         7. Upload completed summaries and events to Azure.
-        8. Optionally upload to Log Analytics.
     """
 
     # Create a readable local timestamp.
@@ -747,10 +655,6 @@ def on_message(client, userdata, message):
         data = validate_telemetry(
             json.loads(payload)
         )
-
-        # The Log Analytics schema requires valid numeric values.
-        if not data['sensor_fault']:
-            prepare_telemetry(data)
 
     except (
         json.JSONDecodeError,
@@ -930,16 +834,6 @@ def on_message(client, userdata, message):
 
     flush_pending_writes()
 
-    # --------------------------------------------------------
-    # STEP 11G: Optional Azure Log Analytics upload.
-    # --------------------------------------------------------
-
-    if not data['sensor_fault']:
-        maybe_upload_logs(
-            data,
-            now,
-        )
-
 
 # ============================================================
 # STEP 12: Start the MQTT subscriber.
@@ -1000,15 +894,6 @@ def main():
     )
 
     print(f"[ML] Isolation Forest enabled | MQTT topic: {LIVE_ML_TOPIC}")
-
-    print(
-        "[LOG ANALYTICS] "
-        + (
-            "ENABLED"
-            if LOG_ANALYTICS_ENABLED
-            else "DISABLED - no log ingestion"
-        )
-    )
 
     # Start the non-blocking email worker before receiving MQTT events.
     start_email_worker()

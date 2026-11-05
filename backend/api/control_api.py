@@ -161,17 +161,6 @@ def make_threshold_command(body):
     return {'action': 'SET_THRESHOLDS', 'metric': metric, **values}
 
 
-def make_fan_temperatures(body):
-    on = _number(body.get('on_temperature'), 'on_temperature')
-    off = _number(body.get('off_temperature'), 'off_temperature')
-    cfg = snapshot()['config'] or {}
-    high = (cfg.get('temperature') or {}).get('critical_high', 70)
-    if not (-40 <= off < on < float(high)):
-        raise ValueError('Fan temperatures require -40 <= OFF < ON < temperature critical-high')
-    return {'action': 'SET_FAN_TEMPERATURES', 'on_temperature': on,
-            'off_temperature': off}
-
-
 def issue_command(command, timeout=6):
     """Reports APPLIED only after matching ESP32 ack; no optimistic success."""
     if not _control_started or not client.is_connected() or not snapshot()['connected']:
@@ -278,7 +267,7 @@ def session_status():
 
 @app.post('/api/session')
 def session_login():
-    # Independent authorization; Grafana login alone grants NO motor permissions.
+    # Operator authentication is separate from Grafana authentication.
     now = time.monotonic()
     ip = request.remote_addr or '127.0.0.1'
     attempts = failed_logins[ip]

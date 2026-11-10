@@ -43,7 +43,7 @@ services:
     depends_on:
       - mosquitto
 
-  # Grafana dashboard - temporary port 3001 for migration testing
+  # Grafana dashboard - localhost port 3000
   grafana:
     image: grafana/grafana:13.2.3
     restart: unless-stopped

@@ -111,7 +111,7 @@ BROKER_HOST = os.getenv(
 BROKER_PORT = 1883
 
 # Existing MQTT account.
-MQTT_USERNAME = "esp32_monitor"
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "esp32_monitor")
 
 # Topics published by the physical ESP32.
 TELEMETRY_TOPIC = "equipment/ESP32-001/telemetry"

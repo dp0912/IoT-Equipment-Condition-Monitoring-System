@@ -1,11 +1,10 @@
-
 <div align="center">
 
 # ⚙️ IoT Equipment Condition Monitoring System
 
-### Intelligent Edge Monitoring • Docker Infrastructure • Cloud Analytics • Machine Learning
+### Intelligent Edge Monitoring • Real-Time IoT • Cloud Analytics • Machine Learning
 
-**An end-to-end Industrial IoT prototype combining real-time sensor monitoring, edge intelligence, containerized backend services, cloud-based analytics, machine learning, and automated equipment alerts.**
+An end-to-end Industrial Internet of Things (IIoT) prototype that combines ESP32-based sensor monitoring, MQTT communication, real-time analytics, machine learning, Microsoft Azure storage, and interactive Grafana dashboards.
 
 <br>
 
@@ -13,15 +12,15 @@
 ![Python](https://img.shields.io/badge/Python-Backend-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![MQTT](https://img.shields.io/badge/MQTT-Mosquitto-660066?style=for-the-badge)
-![Azure](https://img.shields.io/badge/Microsoft%20Azure-Cloud-0078D4?style=for-the-badge)
+![Azure](https://img.shields.io/badge/Microsoft%20Azure-Storage-0078D4?style=for-the-badge)
 ![Grafana](https://img.shields.io/badge/Grafana-Dashboard-F46800?style=for-the-badge&logo=grafana&logoColor=white)
-![Scikit-learn](https://img.shields.io/badge/Scikit--learn-Anomaly%20Detection-F7931E?style=for-the-badge)
+![Scikit-learn](https://img.shields.io/badge/Scikit--learn-Isolation%20Forest-F7931E?style=for-the-badge)
 
 <br>
 
-![Course](https://img.shields.io/badge/Ontario%20Tech%20University-SOFE%204610U-003DA5)
+**Ontario Tech University | SOFE 4610U — Design and Analysis of IoT Software**
 
-**[Overview](#-project-overview) · [Architecture](#-system-architecture) · [Features](#-key-features) · [Dashboard](#-grafana-dashboard) · [Docker](#-docker-infrastructure) · [Quick Start](#-quick-start) · [Documentation](#-project-documentation)**
+[Overview](#-project-overview) • [Architecture](#-system-architecture) • [Features](#-key-features) • [Dashboard](#-grafana-dashboard) • [Setup](#-getting-started) • [Documentation](#-documentation)
 
 </div>
 
@@ -29,123 +28,102 @@
 
 ## 📖 Project Overview
 
-The **IoT Equipment Condition Monitoring System** is an Industrial Internet of Things (IIoT) prototype developed for **SOFE 4610U — Design of IoT** at Ontario Tech University.
+The **IoT Equipment Condition Monitoring System** is a configurable equipment monitoring platform designed to demonstrate the complete lifecycle of IoT data, from physical sensors to cloud storage and visualization.
 
-The system uses an **ESP32-WROOM-32** microcontroller with **DHT11** and **MPU6050/MPU6500** sensors to measure temperature, humidity, and vibration.
+An **ESP32-WROOM-32** collects temperature, humidity, and vibration measurements using DHT11 and MPU6050/MPU6500 sensors.
 
-Sensor measurements are processed locally to classify equipment conditions as **NORMAL**, **WARNING**, or **CRITICAL**. The ESP32 controls physical indicators and publishes telemetry through the MQTT protocol.
+The ESP32 evaluates configurable thresholds locally and classifies equipment conditions into three levels:
 
-The backend integrates:
+- 🟢 **NORMAL** — Sensor readings are within configured operating limits.
+- 🟡 **WARNING** — One or more measurements exceed warning limits.
+- 🔴 **CRITICAL** — One or more measurements exceed critical limits.
 
-- **Eclipse Mosquitto** for MQTT messaging.
-- **Python** for telemetry ingestion and processing.
-- **Scikit-learn Isolation Forest** for anomaly detection.
-- **Microsoft Azure Table Storage** for historical monitoring records.
-- **Flask** for historical data and authenticated remote controls.
-- **Grafana** for real-time visualization and equipment configuration.
-- **SMTP** for configurable email notifications.
-- **Docker Compose** for containerized local infrastructure.
+The ESP32 activates local LED and buzzer indicators while publishing telemetry through MQTT.
 
-The platform provides a foundation for configurable equipment condition monitoring and demonstrates the integration of embedded systems, IoT communication, cloud services, analytics, and machine learning.
+A Docker-based Python backend processes incoming measurements, performs aggregation and Isolation Forest anomaly detection, stores historical records in Microsoft Azure Table Storage, and delivers email notifications.
 
-### Supported Equipment Profiles
+**Grafana** provides live monitoring, historical trends, anomaly visualization, and authenticated equipment configuration.
 
-The system supports eight configurable equipment monitoring profiles:
+The system supports eight equipment profiles, enabling the same monitoring hardware to represent different equipment scenarios.
 
-`MOTOR` · `PUMP` · `COMPRESSOR` · `FAN` · `CONDENSER` · `HEAT_EXCHANGER` · `AHU` · `CHILLER`
-
-Each profile contains configurable temperature, humidity, and vibration thresholds.
-
-> **Project scope:** The current prototype uses one ESP32 to monitor one selected equipment profile at a time. It does not directly control physical industrial equipment. Monitoring thresholds and anomaly predictions are educational demonstrations rather than certified industrial safety systems.
+> **Scope:** This is an educational monitoring prototype using one ESP32 and one active equipment profile at a time. It does not directly control an industrial motor or other machinery and is not a certified safety system.
 
 ---
 
 ## 🏗️ System Architecture
 
-The system uses a layered IoT architecture separating edge processing, communication, backend services, cloud storage, and visualization.
-
 <div align="center">
 
 <img src="docs/images/system-architecture.png" alt="IoT Equipment Condition Monitoring System Architecture" width="100%">
 
-<sub>System Architecture — ESP32 Edge Processing, MQTT, Python Services, Azure Storage, Grafana and Alerts</sub>
+<sub>ESP32 Edge Layer • Docker-Based MQTT and Processing • Azure Storage • Grafana Visualization</sub>
 
 </div>
 
-### Architecture Layers
+### Architecture Components
 
-| Layer | Technologies | Responsibilities |
+| Layer | Technology | Responsibility |
 |---|---|---|
-| **Device & Edge** | ESP32, DHT11, MPU6050/MPU6500 | Sensor acquisition, threshold evaluation, local indicators |
-| **Communication** | MQTT, Eclipse Mosquitto | Device messaging, telemetry distribution, commands |
-| **Backend & Processing** | Python, Paho MQTT, Scikit-learn | Data ingestion, aggregation, anomaly detection, notifications |
-| **Cloud Storage** | Azure Table Storage | Historical summaries and condition-change records |
-| **API & Control** | Flask, Waitress | Historical data retrieval and authenticated remote configuration |
-| **Visualization** | Grafana | Live monitoring, historical trends, alerts, equipment configuration |
-| **Infrastructure** | Docker, Docker Compose | Container orchestration and persistent service data |
+| **Device & Edge** | ESP32, DHT11, MPU6050/MPU6500 | Sensor acquisition, condition classification, local alerts |
+| **Communication** | MQTT, Eclipse Mosquitto | Telemetry, device status, commands and acknowledgements |
+| **Processing** | Python, Paho MQTT, Scikit-learn | Aggregation, event processing, anomaly detection and notifications |
+| **Cloud Storage** | Microsoft Azure Table Storage | Historical summaries and monitoring events |
+| **API & Control** | Flask, Waitress | Historical data retrieval and authenticated configuration |
+| **Visualization** | Grafana | Real-time readings, historical trends, ML results and controls |
+| **Infrastructure** | Docker Compose | Local service orchestration and persistent data |
 
-### Telemetry Flow
-
-```text
-ESP32 Sensors
-     |
-     v
-Edge Sensor Processing
-     |
-     v
-MQTT Telemetry
-     |
-     v
-Docker Mosquitto Broker
-     |
-     v
-Python MQTT Subscriber
-     |
-     +------------------------+
-     |                        |
-     v                        v
-Data Aggregation        Isolation Forest ML
-     |                        |
-     v                        v
-Azure Table Storage     MQTT Anomaly Results
-     |                        |
-     +------------+-----------+
-                  |
-                  v
-           Flask History API
-                  |
-                  v
-            Grafana Dashboard
-```
-
-### Operator Control Flow
+### Data Flow
 
 ```text
-Grafana Dashboard
-       |
-       v
-Operator Authentication
-       |
-       v
-Flask Control API
-       |
-       v
-MQTT Command
-       |
-       v
-ESP32
-       |
-       v
-Configuration Applied / Rejected
-       |
-       v
-MQTT Acknowledgement
-       |
-       v
-Flask API / Grafana
+ESP32 + Sensors
+      |
+      | MQTT Telemetry
+      v
+Eclipse Mosquitto
+      |
+      +----------------------> Grafana Live Dashboard
+      |
+      v
+Python Subscriber
+      |
+      +----> Data Aggregation
+      |
+      +----> Isolation Forest Anomaly Detection
+      |
+      +----> Event Detection and Email Alerts
+      |
+      v
+Microsoft Azure Table Storage
+      |
+      v
+Flask History API
+      |
+      v
+Grafana Historical Dashboard
 ```
 
-Operator configuration changes are reported as successfully applied only after the corresponding ESP32 acknowledgement is received.
+### Remote Configuration Flow
+
+```text
+Grafana Operator Controls
+          |
+          v
+Authenticated Flask API
+          |
+          v
+MQTT Command via Mosquitto
+          |
+          v
+ESP32 Configuration Update
+          |
+          v
+MQTT Command Acknowledgement
+          |
+          v
+Grafana Confirmation
+```
+
+The backend reports a configuration change as applied only after receiving the corresponding ESP32 acknowledgement.
 
 ---
 
@@ -153,189 +131,259 @@ Operator configuration changes are reported as successfully applied only after t
 
 | Feature | Description |
 |---|---|
-| 📡 **Real-Time Monitoring** | Temperature, humidity and vibration telemetry approximately every 2.5 seconds |
-| 🚦 **Condition Detection** | Edge-based NORMAL, WARNING and CRITICAL classification |
-| 🔔 **Local Alerts** | Green, yellow and red LEDs, audible buzzer and acknowledgement button |
-| 🏭 **Equipment Profiles** | Eight selectable profiles with configurable thresholds |
-| 🔐 **Operator Authentication** | Separate operator Sign In / Sign Out controls |
-| 🎛️ **Remote Configuration** | MQTT-based profile and threshold updates |
-| ✅ **Command Acknowledgement** | ESP32 confirms applied or rejected changes |
-| 🔒 **Access Protection** | Flask sessions, CSRF protection and protected control endpoints |
-| 💾 **Persistent Configuration** | ESP32 stores profile and threshold settings |
-| ☁️ **Azure Integration** | Historical sensor summaries and equipment events |
+| 📡 **Real-Time Telemetry** | Temperature, humidity and vibration readings approximately every 2.5 seconds |
+| 🚦 **Edge Condition Detection** | NORMAL, WARNING and CRITICAL classification |
+| 🔔 **Local Alerts** | Green, yellow and red LEDs, active buzzer and physical acknowledgement button |
+| 🏭 **Equipment Profiles** | Eight equipment monitoring profiles with configurable thresholds |
+| 🎛️ **Remote Configuration** | Change monitoring profiles and thresholds through Grafana |
+| 🔐 **Operator Authentication** | Protected sign-in, sessions and authorized control requests |
+| ✅ **Command Acknowledgements** | ESP32 confirms accepted or rejected configuration updates |
+| 💾 **Persistent Settings** | ESP32 stores monitoring configuration using Preferences |
 | 🤖 **ML Anomaly Detection** | Isolation Forest inference on aggregated telemetry |
-| 📧 **Email Notifications** | Configurable equipment and connectivity notifications |
-| 📊 **Grafana Dashboard** | Live telemetry, historical trends, anomaly results and controls |
-| 🐳 **Docker Compose** | Containerized Mosquitto, subscriber, API and Grafana services |
-| 📶 **Connectivity Monitoring** | Online/offline detection and device status updates |
+| ☁️ **Cloud Storage** | Historical summaries and events in Azure Table Storage |
+| �� **Grafana Visualization** | Live monitoring, historical trends and configuration panels |
+| 📧 **Email Notifications** | Warning, critical, recovery, offline and online notifications |
+| 📶 **Connectivity Monitoring** | Device availability and automatic reconnection |
+| 🐳 **Containerization** | Four local services managed with Docker Compose |
 
+---
+
+## 🏭 Supported Equipment Profiles
+
+The platform supports eight configurable monitoring profiles:
+
+| Profile | Equipment Scenario |
+|---|---|
+| `MOTOR` | Electric motor |
+| `PUMP` | Industrial pump |
+| `COMPRESSOR` | Compressor |
+| `FAN` | Ventilation fan |
+| `CONDENSER` | Condenser |
+| `HEAT_EXCHANGER` | Heat exchanger |
+| `AHU` | Air handling unit |
+| `CHILLER` | Chiller |
+
+Each profile defines configurable temperature, humidity and vibration limits.
+
+Only one profile is active at a time. An operator can switch profiles or modify thresholds through authenticated Grafana controls.
 
 ---
 
 ## 📊 Grafana Dashboard
 
-The Grafana dashboard provides a centralized interface for monitoring equipment health, analyzing historical sensor data, detecting anomalies, and configuring equipment profiles.
-
 <div align="center">
 
 <img src="docs/images/grafana-dashboard.png" alt="IoT Equipment Monitoring Grafana Dashboard" width="100%">
 
-<sub>Grafana dashboard showcase for the equipment condition monitoring prototype.</sub>
+<sub>Grafana monitoring dashboard with live telemetry, historical analytics and operator controls.</sub>
 
 </div>
 
 ### Dashboard Capabilities
 
-| Real-Time Monitoring | Analytics & Configuration |
-|---|---|
-| Temperature measurements | Azure historical trends |
-| Humidity measurements | Historical equipment conditions |
-| Vibration measurements | Isolation Forest anomaly results |
-| Equipment condition | Operator authentication |
-| Sensor health | Equipment profile selection |
-| Device connectivity | Configurable thresholds |
-| Local alarm state | Remote commands and acknowledgements |
+**Real-Time Monitoring**
+- Temperature, humidity and vibration measurements
+- Current equipment condition
+- ESP32 online/offline status
+- Sensor health and local alarm state
+- Machine learning anomaly results
 
-### 🔐 Operator Authentication & Access Control
+**Historical Analytics**
+- Azure historical temperature and humidity trends
+- Historical vibration measurements
+- Aggregated monitoring summaries
+- Equipment warning, critical and recovery events
 
-The dashboard includes an operator authentication mechanism separate from Grafana's own user login.
+**Operator Configuration**
+- Operator sign-in and sign-out
+- Equipment profile selection
+- Temperature, humidity and vibration threshold updates
+- ESP32-confirmed configuration values
+- MQTT command acknowledgements
 
-Operators authenticate through the Flask backend before making equipment configuration changes.
-
-The **Operator Access** panel provides:
-
-- Username and password authentication.
-- Sign In and Sign Out functionality.
-- Current operator session status.
-- Access restrictions for configuration operations.
-
-#### Operator Permissions
-
-| Function | Signed Out | Signed In |
-|---|---|---|
-| View permitted live sensor data | ✅ | ✅ |
-| View equipment condition | ✅ | ✅ |
-| View historical Azure data | ✅ | ✅ |
-| View alerts and sensor health | ✅ | ✅ |
-| Change temperature thresholds | 🔒 | ✅ |
-| Change humidity thresholds | 🔒 | ✅ |
-| Change vibration thresholds | 🔒 | ✅ |
-| Change equipment profile | 🔒 | ✅ |
-| Access protected configuration endpoints | 🔒 | ✅ |
-
-Dashboard viewing remains subject to Grafana permissions. Operator authentication independently protects equipment configuration operations.
-
-### Authentication Workflow
-
-**1. Signed Out**
-
-The operator session is inactive. Protected configuration requests are rejected.
-
-**2. Sign In**
-
-An operator enters the configured credentials. The Flask backend validates the request and establishes an authenticated session.
-
-**3. Equipment Configuration**
-
-After authentication, the operator can select an equipment profile or update thresholds.
-
-The backend publishes the corresponding MQTT command to the ESP32.
-
-**4. Command Confirmation**
-
-The ESP32 validates the command, applies or rejects the requested change, and publishes an acknowledgement.
-
-**5. Sign Out**
-
-The authenticated session is terminated, and protected configuration operations become unavailable.
-
-### Authentication Security
-
-The application implements protections including:
-
-- Environment-based operator credentials.
-- Flask session management.
-- CSRF protection.
-- Authentication checks on protected endpoints.
-- Login attempt rate limiting.
-- Session expiration.
-- ESP32 command acknowledgements.
-
-Authentication credentials are not intended to be stored inside the exported Grafana dashboard JSON.
-
-> The Flask control API is designed for local development and should not be exposed directly to the public internet without additional production security controls.
-
-### Grafana Technologies
+### Grafana Plugins
 
 The dashboard uses:
 
-- **Grafana MQTT Data Source** for real-time telemetry.
-- **Infinity Data Source** for historical information through the Flask API.
-- **Business Forms** for configuration and operator controls.
-- **Dynamic Text** for customized device and anomaly displays.
+- **Grafana MQTT Data Source** — Real-time MQTT telemetry
+- **Infinity Data Source** — Historical data through the Flask API
+- **Business Forms** — Operator authentication and configuration
+- **Dynamic Text** — Customized dashboard displays
 
-**[View Grafana Dashboard JSON](dashboard/grafana/iot-equipment-live-dashboard.json)**
+[View Dashboard JSON](dashboard/grafana/iot-equipment-live-dashboard.json)
 
 ---
 
-## 🔧 Hardware & Edge Processing
+## 🔧 Hardware
 
-### ESP32 Hardware Configuration
+The system uses an ESP32-WROOM-32 development board and the following components.
 
-| Component | ESP32 GPIO | Purpose |
+| Component | GPIO / Connection | Purpose |
 |---|---|---|
 | DHT11 | GPIO27 | Temperature and humidity |
-| MPU6050/MPU6500 SDA | GPIO21 | I²C data |
-| MPU6050/MPU6500 SCL | GPIO22 | I²C clock |
-| Green LED | GPIO25 | NORMAL condition |
-| Yellow LED | GPIO26 | WARNING condition |
-| Red LED | GPIO33 | CRITICAL condition |
+| MPU6050/MPU6500 SDA | GPIO21 | I²C sensor data |
+| MPU6050/MPU6500 SCL | GPIO22 | I²C sensor clock |
+| Green LED | GPIO25 | NORMAL indicator |
+| Yellow LED | GPIO26 | WARNING indicator |
+| Red LED | GPIO33 | CRITICAL indicator |
+| Active Buzzer | GPIO23 | Audible critical alarm |
 | Push Button | GPIO13 | Alarm acknowledgement |
-| Active Buzzer | GPIO23 | Audible critical alert |
 
-### Condition Classification
+The buzzer uses a repeating 200 ms ON / 800 ms OFF pattern during an unacknowledged critical condition.
 
-| Condition | Local Response |
+The button allows the operator to silence the alarm without changing the measured equipment condition.
+
+**Firmware:** [equipment_monitor.ino](firmware/esp32/equipment_monitor/equipment_monitor.ino)
+
+**Wiring Guide:** [ESP32 Hardware Wiring](docs/wiring/esp32_wiring.md)
+
+---
+
+## 📡 MQTT Communication
+
+Eclipse Mosquitto provides authenticated publish/subscribe messaging between the ESP32, Python backend, Flask API and Grafana.
+
+The current device identifier is `ESP32-001`.
+
+| MQTT Topic | Purpose |
 |---|---|
-| 🟢 **NORMAL** | Green LED activated |
-| 🟡 **WARNING** | Yellow LED activated |
-| 🔴 **CRITICAL** | Red LED and buzzer activated |
+| `equipment/ESP32-001/telemetry` | Sensor readings |
+| `equipment/ESP32-001/status` | Device availability |
+| `equipment/ESP32-001/config` | Confirmed equipment configuration |
+| `equipment/ESP32-001/sensor_health` | Sensor diagnostics |
+| `equipment/ESP32-001/control_status` | Condition and alarm status |
+| `equipment/ESP32-001/alerts` | Equipment alerts |
+| `equipment/ESP32-001/commands` | Remote configuration commands |
+| `equipment/ESP32-001/command_ack` | Command acknowledgements |
+| `equipment/ESP32-001/connectivity` | Connectivity events |
+| `equipment/ESP32-001/ml` | Machine learning results |
 
-Temperature and humidity use upper and lower limits.
+MQTT authentication uses a private Mosquitto password file. Anonymous connections are disabled.
 
-Vibration is evaluated using configured upper limits.
+The current local-network MQTT listener uses port `1883` without TLS. It must not be exposed directly to the public internet.
 
-During an unacknowledged CRITICAL condition, the buzzer repeats a **200 ms ON / 800 ms OFF** pattern.
+---
 
-Pressing the physical button acknowledges and silences the alarm without changing the detected equipment condition.
+## 🤖 Machine Learning
 
-### ESP32 Firmware
+The Python backend uses **Scikit-learn Isolation Forest** for unsupervised anomaly detection.
 
-The ESP32 firmware is located at:
+Valid sensor measurements are aggregated into approximately 30-second windows.
+
+The model uses four features:
+
+1. Average temperature
+2. Average humidity
+3. Average vibration
+4. Maximum vibration
+
+The model produces a `NORMAL` or `ANOMALY` classification and an anomaly score.
+
+Machine learning detection operates independently of the ESP32's configurable warning and critical thresholds.
+
+This enables the system to flag unusual telemetry patterns even when individual sensor readings remain within the configured operating limits.
+
+The model is experimental and does not provide certified industrial fault diagnosis.
+
+---
+
+## ☁️ Azure Cloud Storage
+
+The project uses **Microsoft Azure Table Storage** to retain processed IoT monitoring data.
+
+The backend stores two logical record types in the configured Azure table.
+
+| Record Type | Information |
+|---|---|
+| `SUMMARY` | Aggregated temperature, humidity and vibration statistics |
+| `EVENT` | Equipment condition transitions and monitoring events |
+
+The Flask History API retrieves records through:
+
+```http
+GET /api/history/summary
+GET /api/history/events
+```
+
+Grafana uses the Infinity data source to visualize the retrieved historical records.
+
+The Azure connection string and table name are configured using private environment variables.
+
+---
+
+## 📧 Automated Notifications
+
+The Python backend provides configurable SMTP email notifications.
+
+| Notification | Trigger |
+|---|---|
+| ⚠️ WARNING | Equipment enters a warning condition |
+| 🚨 CRITICAL | Equipment enters a critical condition |
+| ✅ RECOVERY | Equipment returns to normal |
+| 📶 DEVICE OFFLINE | Device connectivity is lost |
+| 📶 DEVICE ONLINE | Device connectivity is restored |
+
+Notifications require valid SMTP configuration in the private `.env` file.
+
+**Planned enhancement:** SMS/text notifications for critical events.
+
+---
+
+## 🐳 Docker Infrastructure
+
+The local application stack runs through **Docker Compose**.
+
+| Service | Technology | Function | Host Port |
+|---|---|---|---|
+| `mosquitto` | Eclipse Mosquitto | MQTT broker | `1883` |
+| `subscriber` | Python 3.12 | Ingestion, ML, Azure writes and notifications | Internal |
+| `api` | Flask, Waitress | History API and operator controls | `127.0.0.1:5001` |
+| `grafana` | Grafana | Visualization and configuration | `127.0.0.1:3000` |
+
+Docker volumes preserve MQTT broker data, private configuration and Grafana application data.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- ESP32 development board and connected sensors
+- Arduino IDE with ESP32 board support
+- DHT sensor library, PubSubClient and ArduinoJson
+- Docker Desktop with Docker Compose
+- Local Wi-Fi network accessible to the ESP32 and host computer
+- Microsoft Azure Storage account
+- Private MQTT, Grafana operator and optional SMTP credentials
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/dp0912/IoT-Equipment-Condition-Monitoring-System.git
+cd IoT-Equipment-Condition-Monitoring-System
+```
+
+### 2. Configure Environment Variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and configure the required MQTT, Azure and operator credentials.
+
+Configure SMTP settings if email notifications are enabled.
+
+Never commit `.env` or real credentials.
+
+### 3. Configure and Upload ESP32 Firmware
+
+Open:
 
 ```text
 firmware/esp32/equipment_monitor/equipment_monitor.ino
 ```
 
-The monitoring firmware uses Arduino C++ and includes:
-
-- Sensor acquisition.
-- Equipment profiles.
-- Configurable thresholds.
-- Local alarm logic.
-- Button acknowledgement.
-- MQTT telemetry publishing.
-- MQTT command handling.
-- Persistent configuration using Preferences.
-- Automatic Wi-Fi and MQTT reconnection.
-
-### Wi-Fi Configuration
-
-The current firmware uses the original **1,259-line monitoring sketch**, with Wi-Fi and MQTT settings defined in a local `secrets.h` file.
-
-**WiFiManager is not used.**
-
-Example `secrets.h`:
+Create `secrets.h` in the same directory:
 
 ```cpp
 #pragma once
@@ -350,590 +398,85 @@ Example `secrets.h`:
 #define MQTT_PASSWORD "YOUR_MQTT_PASSWORD"
 ```
 
-Replace placeholders with your own configuration.
+Update the placeholder values.
 
-The file must be saved alongside `equipment_monitor.ino` and excluded from Git.
+In Arduino IDE, select **ESP32 Dev Module**, choose the correct USB port, and upload the firmware.
 
-Changing the configured Wi-Fi network or MQTT broker address requires updating `secrets.h` and uploading the firmware again.
+The Serial Monitor uses **115200 baud**.
 
-**[View Hardware Wiring](docs/wiring/esp32_wiring.md)**
+### 4. Prepare Private Docker Configuration
 
----
-
-## 📡 MQTT Communication
-
-The system uses **Eclipse Mosquitto** as its local MQTT broker.
-
-Current device identifier:
-
-```text
-ESP32-001
-```
-
-### MQTT Topics
-
-| Topic | Purpose |
-|---|---|
-| `equipment/ESP32-001/telemetry` | Live sensor measurements |
-| `equipment/ESP32-001/status` | Device online/offline status |
-| `equipment/ESP32-001/config` | Confirmed equipment profile and thresholds |
-| `equipment/ESP32-001/sensor_health` | Sensor diagnostics |
-| `equipment/ESP32-001/control_status` | Equipment condition and alarm state |
-| `equipment/ESP32-001/commands` | Remote configuration commands |
-| `equipment/ESP32-001/command_ack` | ESP32 command acknowledgement |
-| `equipment/ESP32-001/alerts` | Equipment alerts |
-| `equipment/ESP32-001/connectivity` | Backend connectivity monitoring |
-| `equipment/ESP32-001/ml` | Machine learning results |
-
-### Example Telemetry Payload
-
-```json
-{
-  "device_id": "ESP32-001",
-  "profile": "MOTOR",
-  "temperature": 21.0,
-  "humidity": 63.0,
-  "vibration": 0.061,
-  "condition": "NORMAL",
-  "dht_valid": true,
-  "vibration_valid": true,
-  "sensor_fault": false
-}
-```
-
-MQTT supports communication in both directions.
-
-The ESP32 publishes telemetry, configuration, sensor health, and status messages.
-
-Authorized backend services publish configuration commands, while the ESP32 publishes command acknowledgements.
-
----
-
-## 🤖 Machine Learning & Azure
-
-### Isolation Forest Anomaly Detection
-
-The Python backend aggregates valid sensor measurements into approximately **30-second windows**.
-
-An Isolation Forest model analyzes aggregated telemetry features, including:
-
-- Temperature average.
-- Humidity average.
-- Vibration average.
-- Maximum vibration.
-
-The model produces anomaly classifications and scores.
-
-**ML Processing Flow**
-
-```text
-ESP32 Telemetry
-      |
-      v
-MQTT Subscriber
-      |
-      v
-30-Second Aggregation
-      |
-      v
-Feature Preparation
-      |
-      v
-Isolation Forest Model
-      |
-      v
-NORMAL / ANOMALY Result
-      |
-      v
-MQTT Publication
-      |
-      v
-Grafana Visualization
-```
-
-The ML subsystem operates separately from the ESP32's threshold-based classification.
-
-For example, Isolation Forest can identify an anomalous telemetry pattern while the ESP32 still reports a NORMAL equipment condition.
-
-### Azure Historical Storage
-
-The project uses **Microsoft Azure Table Storage**.
-
-Two types of monitoring records are supported:
-
-| Record | Description |
-|---|---|
-| **SUMMARY** | Aggregated temperature, humidity and vibration measurements |
-| **EVENT** | Equipment condition changes and related monitoring events |
-
-The Python backend processes incoming measurements and saves monitoring records to Azure.
-
-The Flask History API retrieves those records and makes them available for historical analysis through Grafana.
-
-
-> Machine learning results are experimental anomaly indicators, not validated industrial fault diagnoses.
-
----
-
-## 📧 Automated Email Notifications
-
-The backend contains SMTP-based notification functionality for equipment events.
-
-| Notification | Trigger |
-|---|---|
-| ⚠️ **WARNING** | Equipment enters WARNING |
-| 🚨 **CRITICAL** | Equipment enters CRITICAL |
-| ✅ **RECOVERY** | Equipment returns to NORMAL |
-| 📶 **OFFLINE** | Device connectivity is lost |
-| 📶 **ONLINE** | Device connectivity is restored |
-
-Example notification:
-
-```text
-Subject: RECOVERY - MOTOR - Equipment Back to Normal
-
-IoT EQUIPMENT CONDITION MONITORING SYSTEM
------------------------------------------
-
-Alert: RECOVERY
-Equipment: MOTOR
-Device: ESP32-001
-
-Previous Condition: CRITICAL
-Current Condition: NORMAL
-
-Temperature: 26.7 C
-Humidity: 63.0 %
-Vibration: 0.2131 RMS
-```
-
-Email delivery requires valid SMTP configuration in the local environment.
-
-**Planned enhancement:** SMS/text notifications for critical equipment alerts.
-
----
-
-## 🐳 Docker Infrastructure
-
-The project uses **Docker Compose** to run the local MQTT broker, telemetry processing backend, Flask API, and Grafana dashboard.
-
-The containerized architecture simplifies application startup, service isolation, and repeatable development.
-
-### Docker Services
-
-| Service | Image / Technology | Purpose | Host Port |
-|---|---|---|---|
-| **mosquitto** | Eclipse Mosquitto | Authenticated MQTT broker | 1883 |
-| **subscriber** | Python 3.12 | MQTT ingestion, ML, Azure writes, notifications | Internal |
-| **api** | Python 3.12, Flask, Waitress | Historical data and authenticated equipment controls | 5001 |
-| **grafana** | Grafana | Visualization and operator dashboard | 3000 |
-
-The subscriber and API use a shared application Dockerfile.
-
-The Mosquitto and Grafana services use published Docker images.
-
-### Docker Configuration Files
-
-```text
-compose.yaml
-.dockerignore
-
-docker/
-├── Dockerfile
-├── run_api.py
-└── mosquitto/
-    └── mosquitto.conf
-```
-
-### Persistent Docker Volumes
-
-The Compose configuration uses persistent volumes.
-
-| Volume | Purpose |
-|---|---|
-| `iot-mqtt-secrets` | Private Mosquitto password hashes |
-| `mosquitto_data` | MQTT broker persistence |
-| `iot-grafana-data` | Grafana dashboard and plugin data |
-| `iot-grafana-config` | Private Grafana configuration |
-
-The MQTT secrets and Grafana volumes are configured as external volumes and must be provisioned before first-time startup.
-
-### Security Considerations
-
-- MQTT anonymous access is disabled.
-- Broker authentication uses a private password file.
-- Credentials are excluded from the repository.
-- Flask API is bound to the host loopback interface.
-- Grafana is bound to the host loopback interface.
-- Docker services communicate using internal service names.
-- Persistent volumes preserve important application data.
-- Local MQTT port 1883 is not intended to be exposed to the public internet.
-
----
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/dp0912/IoT-Equipment-Condition-Monitoring-System.git
-
-cd IoT-Equipment-Condition-Monitoring-System
-```
-
-### 2. Configure the Environment
-
-Copy the environment template:
-
-```bash
-cp .env.example .env
-```
-
-Configure `.env` with the necessary:
-
-- MQTT authentication settings.
-- Azure Table Storage connection information.
-- Operator authentication credentials.
-- Allowed local dashboard origins.
-- Optional SMTP notification settings.
-
-The `.env` file contains sensitive information and must never be committed to GitHub.
-
-### 3. Configure ESP32 Firmware
-
-Open the following file in Arduino IDE:
-
-```text
-firmware/esp32/equipment_monitor/equipment_monitor.ino
-```
-
-Create or configure the local `secrets.h` file with Wi-Fi and MQTT settings.
-
-Install the required Arduino libraries:
-
-- DHT sensor library.
-- PubSubClient.
-- ArduinoJson.
-
-Select:
-
-```text
-Board: ESP32 Dev Module
-Serial Monitor: 115200 baud
-```
-
-Choose the correct ESP32 USB port and upload the firmware.
-
-The ESP32 must be connected to a Wi-Fi network that can reach the Mac hosting Mosquitto.
-
-### 4. Install and Start Docker Desktop
-
-Install Docker Desktop for your operating system.
-
-On macOS, open Docker Desktop and confirm that the Docker daemon is running:
-
-```bash
-docker info
-```
-
-Verify Docker Compose:
-
-```bash
-docker compose version
-```
-
-### 5. Configure Private Docker Volumes
-
-The Docker Compose configuration expects external volumes for authentication and Grafana configuration.
-
-Create them if they do not already exist:
+This deployment uses three external volumes:
 
 ```bash
 docker volume create iot-mqtt-secrets
-
 docker volume create iot-grafana-data
-
 docker volume create iot-grafana-config
 ```
 
-**Important:** Creating volumes does not automatically install the private configuration files.
+These volumes require the appropriate private configuration.
 
-The Mosquitto secrets volume must contain its password file at:
+- `iot-mqtt-secrets` contains the Mosquitto password file.
+- `iot-grafana-data` stores Grafana dashboards, plugins and application data.
+- `iot-grafana-config` contains the private Grafana configuration.
 
-```text
-/secrets/passwd
-```
+Creating the volumes alone does not configure authentication or Grafana.
 
-The Grafana configuration volume must contain a valid private configuration at:
+See the [Operations Guide](docs/guides/02_OPERATIONS_GUIDE.md) for configuration details.
 
-```text
-/grafana.ini
-```
+If the volumes are already configured, preserve and reuse them.
 
-These paths refer to the roots of their respective volumes. The files appear inside their containers at `/mosquitto/secrets/passwd` and `/grafana-private/grafana.ini`.
+### 5. Start the Application
 
-The Mosquitto password file must be readable by the Mosquitto container user.
-
-For this project, the private volumes were configured locally and the services were successfully started.
-
-### 6. Check Docker Compose Configuration
-
-From the repository root:
-
-```bash
-docker compose config --quiet
-```
-
-A valid Compose configuration produces no error output.
-
-### 7. Build and Start the Services
+Open Docker Desktop and run from the repository root:
 
 ```bash
 docker compose up -d --build
 ```
 
-Docker Compose starts:
-
-```text
-mosquitto
-subscriber
-api
-grafana
-```
-
-Check running services:
+View the running services:
 
 ```bash
 docker compose ps
 ```
 
-Expected service status:
+### 6. Open Grafana
 
-```text
-mosquitto    Up
-subscriber   Up
-api          Up
-grafana      Up
-```
-
-### 8. Verify MQTT Telemetry
-
-Check subscriber logs:
-
-```bash
-docker compose logs --tail=30 subscriber
-```
-
-Example:
-
-```text
-[MQTT] Connected to broker
-[MQTT] Subscribed to telemetry and status
-
-[MQTT] Device: ESP32-001 | Temp: 21.0 C | Humidity: 63.0% | Vibration: 0.061 | Condition: NORMAL
-
-[CONNECTIVITY] ONLINE
-```
-
-### 9. Verify Machine Learning and Azure Storage
-
-Check for backend messages such as:
-
-```text
-Isolation Forest model loaded
-
-[ML] Isolation Forest enabled
-
-[ML] ESP32-001 | ANOMALY | Anomaly score: 0.009402
-
-[SUMMARY] ESP32-001 | Samples: 13 | Vibration avg: 0.0979 | max: 0.3139 | Worst: NORMAL
-
-[AZURE TABLE] SUMMARY saved
-```
-
-### 10. Verify the Flask API
-
-Open a terminal and execute:
-
-```bash
-curl http://127.0.0.1:5001/api/health
-```
-
-Example successful response:
-
-```json
-{
-  "control_enabled": true,
-  "mqtt_connected": true,
-  "service": "IoT Historical Data API",
-  "status": "OK"
-}
-```
-
-### 11. Open Grafana
-
-Open your browser:
+Open:
 
 **http://localhost:3000**
 
-Log in to Grafana.
+Sign in to Grafana and open the equipment monitoring dashboard.
 
-If your dashboard has already been stored in the persistent Grafana volume, it should be available.
-
-For a new installation, import:
+For a new Grafana installation, import:
 
 ```text
 dashboard/grafana/iot-equipment-live-dashboard.json
 ```
 
-Configure the required data sources and plugin settings.
+Configure the required plugins and data sources.
 
-### 12. Operator Sign In / Sign Out
+### 7. Access the API
 
-In the Grafana dashboard, navigate to:
+The local Flask API is available at:
 
-**Configuration & Control → Operator Access**
+**http://127.0.0.1:5001**
 
-Follow the workflow:
-
-1. Enter the configured operator username and password.
-2. Select **Sign in**.
-3. Confirm the status shows `SIGNED IN`.
-4. Select an equipment profile or modify permitted thresholds.
-5. Confirm the ESP32 acknowledges the command.
-6. Select **Sign out**.
-7. Confirm the status shows `SIGNED OUT`.
-
----
-
-## 🔍 Docker Monitoring & Troubleshooting
-
-### View All Containers
+Health endpoint:
 
 ```bash
-docker compose ps
+curl http://127.0.0.1:5001/api/health
 ```
 
-### View Subscriber Logs
-
-```bash
-docker compose logs --tail=50 subscriber
-```
-
-### View API Logs
-
-```bash
-docker compose logs --tail=50 api
-```
-
-### View MQTT Broker Logs
-
-```bash
-docker compose logs --tail=50 mosquitto
-```
-
-### View Grafana Logs
-
-```bash
-docker compose logs --tail=50 grafana
-```
-
-### Follow Live Telemetry
-
-```bash
-docker compose logs -f subscriber
-```
-
-Press `Ctrl+C` to stop following the logs without stopping the container.
-
-### Restart Services
-
-```bash
-docker compose restart
-```
-
-### Stop the System
+### 8. Stop the Application
 
 ```bash
 docker compose down
 ```
 
-This stops the containers while preserving persistent named volumes.
+This stops the containers while preserving persistent volumes.
 
-Avoid using `docker compose down -v` unless you intentionally want to remove Compose-managed persistent data.
-
-### Port Conflicts
-
-The Docker stack uses:
-
-```text
-1883 - MQTT
-3000 - Grafana
-5001 - Flask API
-```
-
-If Homebrew Mosquitto or Grafana is already listening on these ports, stop the conflicting local services before starting Docker Compose.
-
-On macOS:
-
-```bash
-brew services stop mosquitto
-brew services stop grafana
-```
-
-Do not run Docker and Homebrew versions of the same service on identical host ports.
-
-### MQTT Network Address
-
-The ESP32 connects to the Mac's local network IP and the Docker-published MQTT port.
-
-The subscriber and API containers connect to the internal Docker service name:
-
-```text
-MQTT_HOST=mosquitto
-MQTT_PORT=1883
-```
-
-If the Mac's LAN IP changes, update the ESP32's `secrets.h` and reupload the firmware as needed.
-
----
-
-## 🛠️ Technology Stack
-
-| Category | Technology |
-|---|---|
-| Embedded Hardware | ESP32-WROOM-32 |
-| Firmware | Arduino C++ |
-| Sensors | DHT11, MPU6050/MPU6500 |
-| IoT Communication | MQTT, Eclipse Mosquitto |
-| Backend | Python, Paho MQTT |
-| API | Flask, Waitress |
-| Authentication | Flask Sessions, CSRF Protection |
-| Machine Learning | Scikit-learn, Isolation Forest |
-| Cloud Storage | Microsoft Azure Table Storage |
-| Visualization | Grafana |
-| Notifications | SMTP |
-| Containerization | Docker, Docker Compose |
-| Development | VS Code, Arduino IDE, Git, GitHub |
-| Development Environment | macOS, Apple Silicon |
-
----
-
-
-## 📚 Project Documentation
-
-The repository contains documentation covering system architecture, implementation, setup, and operation.
-
-| Document | Description |
-|---|---|
-| 📘 **[Technical Project Guide](docs/guides/01_TECHNICAL_GUIDE.md)** | Architecture, hardware, firmware, MQTT, backend, Azure, ML, Grafana and security |
-| 🛠️ **[Operations Guide](docs/guides/02_OPERATIONS_GUIDE.md)** | Installation, configuration, startup and troubleshooting |
-
-### Additional References
-
-- [System Architecture](docs/architecture/system_architecture.md)
-- [ESP32 Hardware Wiring](docs/wiring/esp32_wiring.md)
-- [Grafana Dashboard Configuration](dashboard/grafana/iot-equipment-live-dashboard.json)
+Do not use `docker compose down -v` for routine shutdown.
 
 ---
 
@@ -941,68 +484,117 @@ The repository contains documentation covering system architecture, implementati
 
 ```text
 IoT-Equipment-Condition-Monitoring-System/
-│
+|
 ├── README.md
+├── compose.yaml
 ├── requirements.txt
 ├── .env.example
 ├── .dockerignore
-├── compose.yaml
-│
+|
+├── firmware/
+│   └── esp32/
+│       └── equipment_monitor/
+│           └── equipment_monitor.ino
+|
+├── hardware/
+│   └── components.md
+|
+├── backend/
+│   ├── mqtt/
+│   ├── api/
+│   ├── azure/
+│   └── notifications/
+|
+├── ml/
+│   ├── training/
+│   ├── inference/
+│   └── models/
+|
+├── dashboard/
+│   └── grafana/
+│       └── iot-equipment-live-dashboard.json
+|
 ├── docker/
 │   ├── Dockerfile
 │   ├── run_api.py
 │   └── mosquitto/
 │       └── mosquitto.conf
-│
-├── firmware/
-│   └── esp32/
-│       └── equipment_monitor/
-│           └── equipment_monitor.ino
-│
-├── hardware/
-│   └── components.md
-│
-├── backend/
-│   ├── api/
-│   ├── mqtt/
-│   ├── azure/
-│   └── notifications/
-│
-├── dashboard/
-│   └── grafana/
-│
-├── ml/
-│   ├── training/
-│   ├── inference/
-│   └── models/
-│
-├── docs/
-│   ├── guides/
-│   │   ├── 01_TECHNICAL_GUIDE.md
-│   │   └── 02_OPERATIONS_GUIDE.md
-│   │
-│   ├── architecture/
-│   │   └── system_architecture.md
-│   │
-│   ├── images/
-│   │   ├── system-architecture.png
-│   │   └── grafana-dashboard.png
-│   │
-│   ├── wiring/
-│   │   └── esp32_wiring.md
-│   │
-│
+|
+└── docs/
+    ├── architecture/
+    │   └── system_architecture.md
+    ├── guides/
+    │   ├── 01_TECHNICAL_GUIDE.md
+    │   └── 02_OPERATIONS_GUIDE.md
+    ├── images/
+    │   ├── system-architecture.png
+    │   └── grafana-dashboard.png
+    └── wiring/
+        └── esp32_wiring.md
 ```
 
-Private environment files, Wi-Fi credentials, MQTT password files, and persistent Docker data are intentionally excluded from the repository.
+Private credentials, configuration secrets and persistent Docker data are excluded from Git.
+
+---
+
+## 🔐 Security
+
+The system includes:
+
+- MQTT username/password authentication
+- Disabled anonymous broker access
+- Separate operator authentication for configuration changes
+- Flask session and CSRF protections
+- Protected configuration endpoints
+- ESP32 command acknowledgements
+- Private environment configuration
+- Localhost-bound Grafana and Flask services
+- Persistent Docker storage
+
+The implementation is intended for trusted local-network development. Production deployment would require additional security hardening, including encrypted MQTT transport and durable service-level recovery mechanisms.
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|---|---|
+| [System Architecture](docs/architecture/system_architecture.md) | System components and data flow |
+| [Technical Guide](docs/guides/01_TECHNICAL_GUIDE.md) | Firmware, MQTT, backend, cloud, ML and control design |
+| [Operations Guide](docs/guides/02_OPERATIONS_GUIDE.md) | Setup, startup, shutdown and troubleshooting |
+| [Hardware Wiring](docs/wiring/esp32_wiring.md) | ESP32 pin connections |
+| [Grafana Dashboard JSON](dashboard/grafana/iot-equipment-live-dashboard.json) | Exported monitoring dashboard |
+
+---
+
+## 🛠️ Technology Stack
+
+**Hardware:** ESP32-WROOM-32, DHT11, MPU6050/MPU6500, LEDs, buzzer and push button
+
+**Firmware:** Arduino C++
+
+**Communication:** MQTT, Eclipse Mosquitto, Paho MQTT
+
+**Backend:** Python, Flask, Waitress
+
+**Machine Learning:** Scikit-learn, Isolation Forest
+
+**Cloud:** Microsoft Azure Table Storage
+
+**Visualization:** Grafana
+
+**Notifications:** SMTP
+
+**Infrastructure:** Docker, Docker Compose
+
+**Development:** VS Code, Arduino IDE, Git and GitHub
 
 ---
 
 <div align="center">
 
-### Built with ESP32 • Python • MQTT • Docker • Microsoft Azure • Grafana • Scikit-learn
+### Built with ESP32 • MQTT • Python • Docker • Azure • Grafana • Scikit-learn
 
-**Transforming real-time sensor measurements into intelligent equipment insights.**
-
+**From real-time sensor data to intelligent equipment monitoring.**
 
 </div>

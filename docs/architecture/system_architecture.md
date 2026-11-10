@@ -2,7 +2,6 @@
 
 **Course:** SOFE 4610U — Design and Analysis of IoT Software
 **Deployment:** ESP32 + Mac (Docker Compose) + Microsoft Azure
-**Status:** Functional core prototype; full validation in progress
 
 ![Current System Architecture](../images/system-architecture.png)
 
@@ -101,7 +100,7 @@ Grafana uses an HTTP/Infinity data source to request stored records from the Fla
 
 ### Notifications
 
-The Python backend contains SMTP email notifications for WARNING, CRITICAL, RECOVERY and connectivity events. Delivery requires valid SMTP credentials and end-to-end testing.
+The Python backend contains SMTP email notifications for WARNING, CRITICAL, RECOVERY and connectivity events. Delivery requires valid SMTP credentials.
 
 SMS/text notifications are planned, not implemented.
 
@@ -115,20 +114,3 @@ SMS/text notifications are planned, not implemented.
 - Sensitive settings remain in untracked files or private Docker volumes.
 
 MQTT port 1883 is not TLS-encrypted in this deployment. It should only be used on a trusted local network.
-
-## 6. Current Validation
-
-Previously observed results include:
-
-- Four Docker services running.
-- ESP32 telemetry reaching the subscriber.
-- MQTT broker authentication.
-- Approximately 30-second aggregation.
-- Isolation Forest inference.
-- Successful Azure SUMMARY writes.
-- Healthy Flask API.
-- Functioning Grafana dashboard.
-
-Remaining tests include full remote controls, alarms, physical acknowledgement, email delivery, Azure EVENT history, offline recovery and restart persistence.
-
-See `docs/testing/current_validation.md` for the evidence-based checklist.

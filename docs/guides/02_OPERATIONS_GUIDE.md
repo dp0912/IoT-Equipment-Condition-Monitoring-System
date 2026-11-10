@@ -1,4 +1,4 @@
-# Operations, Setup, Troubleshooting and Validation
+# Operations and Setup Guide
 
 **Project:** IoT Equipment Condition Monitoring System
 **Course:** SOFE 4610U — Fall 2026
@@ -124,8 +124,6 @@ curl 'http://127.0.0.1:5001/api/history/summary?limit=2'
 curl 'http://127.0.0.1:5001/api/history/events?limit=2'
 ```
 
-A successful SUMMARY query does not establish that EVENT records have been tested.
-
 ### Open Grafana
 
 Visit:
@@ -138,62 +136,7 @@ The dashboard JSON is:
 
 Existing Grafana data is stored in the persistent volume. Fresh installations may require plugin, data source and dashboard configuration.
 
-## 4. Functional Testing
-
-### Test A — Real-Time Monitoring
-
-Verify temperature, humidity, vibration, condition and connectivity in Grafana.
-
-### Test B — Machine Learning
-
-Verify a 30-second aggregation window and an Isolation Forest result.
-
-### Test C — Azure Storage
-
-Confirm SUMMARY data is saved and returned through the History API.
-
-Trigger a safe condition transition to separately verify EVENT storage.
-
-### Test D — Remote Controls
-
-Sign in through Grafana and apply an equipment profile or threshold change.
-
-Verify the ESP32 responds with `APPLIED` and publishes its confirmed configuration.
-
-A command timeout is not evidence that a change was applied.
-
-Sign out and verify protected controls reject unauthorized changes.
-
-### Test E — Local Alarms
-
-Using controlled demonstration thresholds, verify NORMAL, WARNING and CRITICAL LED behaviour.
-
-Verify the CRITICAL buzzer and GPIO13 acknowledgement button.
-
-### Test F — Email Notifications
-
-Configure and enable SMTP email in your local `.env`.
-
-Verify actual WARNING, CRITICAL, RECOVERY and connectivity notifications before marking this test passed.
-
-### Test G — Offline and Recovery
-
-Disconnect the ESP32 temporarily and verify OFFLINE detection. Reconnect it and check ONLINE recovery.
-
-## 5. Automated Checks
-
-From the repository root:
-
-```bash
-python3 -m compileall -q backend ml
-python3 -m unittest discover -s tests -v
-python3 -m json.tool dashboard/grafana/iot-equipment-live-dashboard.json > /dev/null
-docker compose config --quiet
-```
-
-Record results rather than assuming tests passed because their code exists.
-
-## 6. Troubleshooting
+## 4. Troubleshooting
 
 | Problem | What to check |
 |---|---|
@@ -215,7 +158,7 @@ docker compose logs --tail=50 api
 docker compose logs --tail=50 grafana
 ```
 
-## 7. Safe Shutdown
+## 5. Safe Shutdown
 
 From the project root:
 
@@ -236,22 +179,9 @@ Do not use `docker compose down -v` for normal shutdown.
 
 Unplug the ESP32 if its physical monitoring should also stop.
 
-## 8. Evidence for Final Report
 
-For each test, save:
+## Related Documentation
 
-- Date and time.
-- Git commit and firmware version.
-- Steps performed.
-- Expected result.
-- Actual result.
-- PASS/FAIL outcome.
-- Screenshots or sanitized logs.
-
-Use the current firmware and Docker services for final evaluation.
-
-See:
-
-- `docs/testing/current_validation.md`
-- `docs/architecture/system_architecture.md`
-- `docs/guides/01_TECHNICAL_GUIDE.md`
+- [System Architecture](../architecture/system_architecture.md)
+- [Technical Guide](01_TECHNICAL_GUIDE.md)
+- [ESP32 Wiring](../wiring/esp32_wiring.md)

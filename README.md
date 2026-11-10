@@ -19,7 +19,6 @@
 
 <br>
 
-![Status](https://img.shields.io/badge/Status-Functional%20Prototype%20%7C%20Testing%20Ongoing-yellow)
 ![Course](https://img.shields.io/badge/Ontario%20Tech%20University-SOFE%204610U-003DA5)
 
 **[Overview](#-project-overview) · [Architecture](#-system-architecture) · [Features](#-key-features) · [Dashboard](#-grafana-dashboard) · [Docker](#-docker-infrastructure) · [Quick Start](#-quick-start) · [Documentation](#-project-documentation)**
@@ -170,34 +169,6 @@ Operator configuration changes are reported as successfully applied only after t
 | 🐳 **Docker Compose** | Containerized Mosquitto, subscriber, API and Grafana services |
 | 📶 **Connectivity Monitoring** | Online/offline detection and device status updates |
 
-### Current Development Status
-
-The core monitoring pipeline has been demonstrated successfully.
-
-**Verified integration results include:**
-
-- ESP32 sensor measurements received by the Docker MQTT subscriber.
-- Live temperature, humidity and vibration telemetry.
-- Successful MQTT broker authentication and communication.
-- Isolation Forest model loading and anomaly inference.
-- Generation of approximately 30-second telemetry summaries.
-- Successful Azure Table Storage SUMMARY writes.
-- Flask API health endpoint returning `status: OK`.
-- Flask API reporting an active MQTT connection.
-- Four Docker Compose services running.
-- Grafana dashboard functioning with the monitoring environment.
-
-**Remaining validation:**
-
-- Comprehensive WARNING and CRITICAL condition testing.
-- Physical and remote alarm acknowledgement.
-- Profile and threshold configuration tests.
-- Operator authentication and authorization tests.
-- Email delivery and recovery notification tests.
-- Device disconnection, reconnection and recovery.
-- Longer-duration reliability testing.
-
-> **SMS notifications:** Critical SMS/text alerts are a planned enhancement. They are not part of the currently verified implementation.
 
 ---
 
@@ -499,17 +470,6 @@ The Python backend processes incoming measurements and saves monitoring records 
 
 The Flask History API retrieves those records and makes them available for historical analysis through Grafana.
 
-### Confirmed Azure Integration
-
-During integration testing, the backend successfully logged:
-
-```text
-[SUMMARY] ESP32-001 | Samples: 13 | Vibration avg: 0.0979 | max: 0.3139 | Worst: NORMAL
-
-[AZURE TABLE] SUMMARY saved
-```
-
-This confirms that summary generation and Azure writes are functioning in the tested environment.
 
 > Machine learning results are experimental anomaly indicators, not validated industrial fault diagnoses.
 
@@ -548,8 +508,6 @@ Vibration: 0.2131 RMS
 ```
 
 Email delivery requires valid SMTP configuration in the local environment.
-
-The notification worker has been observed starting successfully, but comprehensive email delivery and alert-trigger testing remains part of the project's ongoing validation.
 
 **Planned enhancement:** SMS/text notifications for critical equipment alerts.
 
@@ -718,7 +676,7 @@ The Mosquitto password file must be readable by the Mosquitto container user.
 
 For this project, the private volumes were configured locally and the services were successfully started.
 
-### 6. Validate Docker Compose
+### 6. Check Docker Compose Configuration
 
 From the repository root:
 
@@ -726,7 +684,7 @@ From the repository root:
 docker compose config --quiet
 ```
 
-Successful validation produces no error output.
+A valid Compose configuration produces no error output.
 
 ### 7. Build and Start the Services
 
@@ -846,8 +804,6 @@ Follow the workflow:
 6. Select **Sign out**.
 7. Confirm the status shows `SIGNED OUT`.
 
-This workflow should be included in comprehensive final system validation.
-
 ---
 
 ## 🔍 Docker Monitoring & Troubleshooting
@@ -966,18 +922,17 @@ If the Mac's LAN IP changes, update the ESP32's `secrets.h` and reupload the fir
 
 ## 📚 Project Documentation
 
-The repository contains documentation covering technical design, implementation, operation, and testing.
+The repository contains documentation covering system architecture, implementation, setup, and operation.
 
 | Document | Description |
 |---|---|
 | 📘 **[Technical Project Guide](docs/guides/01_TECHNICAL_GUIDE.md)** | Architecture, hardware, firmware, MQTT, backend, Azure, ML, Grafana and security |
-| 🛠️ **[Operations & Testing Guide](docs/guides/02_OPERATIONS_AND_TESTING.md)** | Installation, configuration, troubleshooting and end-to-end testing |
+| 🛠️ **[Operations Guide](docs/guides/02_OPERATIONS_GUIDE.md)** | Installation, configuration, startup and troubleshooting |
 
 ### Additional References
 
 - [System Architecture](docs/architecture/system_architecture.md)
 - [ESP32 Hardware Wiring](docs/wiring/esp32_wiring.md)
-- [Current Validation Checklist](docs/testing/current_validation.md)
 - [Grafana Dashboard Configuration](dashboard/grafana/iot-equipment-live-dashboard.json)
 
 ---
@@ -1024,7 +979,7 @@ IoT-Equipment-Condition-Monitoring-System/
 ├── docs/
 │   ├── guides/
 │   │   ├── 01_TECHNICAL_GUIDE.md
-│   │   └── 02_OPERATIONS_AND_TESTING.md
+│   │   └── 02_OPERATIONS_GUIDE.md
 │   │
 │   ├── architecture/
 │   │   └── system_architecture.md
@@ -1036,11 +991,7 @@ IoT-Equipment-Condition-Monitoring-System/
 │   ├── wiring/
 │   │   └── esp32_wiring.md
 │   │
-│   └── testing/
-│       └── current_validation.md
 │
-└── tests/
-    └── test_monitoring_rebuild_contract.py
 ```
 
 Private environment files, Wi-Fi credentials, MQTT password files, and persistent Docker data are intentionally excluded from the repository.

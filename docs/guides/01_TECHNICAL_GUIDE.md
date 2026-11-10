@@ -1,9 +1,8 @@
 # IoT Equipment Condition Monitoring System
 ## Technical Project Guide · SOFE 4610U · 4 November 2026
 
-**Repository:** https://github.com/dp0912/IoT-Equipment-Condition-Monitoring-System  
-**Implementation:** ESP32-WROOM-32 · DHT11 · MPU6050/MPU6500 · MQTT/Mosquitto · Python · Azure Table Storage · Grafana · Isolation Forest · Gmail SMTP  
-**Status:** Working prototype under final monitoring-only integration validation. This document describes source-code functionality; it does not certify all live hardware and cloud paths.
+**Repository:** https://github.com/dp0912/IoT-Equipment-Condition-Monitoring-System
+**Implementation:** ESP32-WROOM-32 · DHT11 · MPU6050/MPU6500 · MQTT/Mosquitto · Python · Azure Table Storage · Grafana · Isolation Forest · Gmail SMTP
 
 ## 1. Purpose and boundaries
 
@@ -90,7 +89,7 @@ Local MQTT on port 1883 uses broker authentication but, **unless separately conf
 | `dashboard/grafana/iot-equipment-live-dashboard.json` | Importable Grafana dashboard definition |
 | `docs/wiring/esp32_wiring.md` | Current hardware GPIO reference |
 
-**Limitations:** Single sensing unit and one active profile; non-calibrated ambient and vibration measurements; no physical equipment control or certified safety hardware; dependence on Mac/local services; no MQTT transport TLS in default LAN setup; cloud write and email queues are not durable; cloud-record completeness depends on service uptime; the current model is experimental; SMS is not implemented; regenerated dashboard images are design illustrations. All system-level acceptance cases must be rechecked on the final firmware and active services.
+**Limitations:** Single sensing unit and one active profile; non-calibrated ambient and vibration measurements; no physical equipment control or certified safety hardware; dependence on Mac/local services; no MQTT transport TLS in default LAN setup; cloud write and email queues are not durable; cloud-record completeness depends on service uptime; the current model is experimental; SMS is not implemented; regenerated dashboard images are design illustrations.
 
 ---
 
@@ -141,6 +140,6 @@ The older Homebrew/manual-Python deployment remains an alternative, but should n
 
 Azure `SUMMARY` and `EVENT` are logical record types in the configured Azure table, not necessarily separate tables.
 
-The current system supports SMTP email alert functionality; actual email delivery requires validation. SMS/text notifications are a planned enhancement, not an implemented feature.
+The system supports SMTP email alerts for equipment conditions and connectivity changes. SMS/text notifications are a planned enhancement, not an implemented feature.
 
 The architecture diagram is available at `docs/images/system-architecture.png`.

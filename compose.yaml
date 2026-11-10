@@ -1,0 +1,80 @@
+
+services:
+  # MQTT broker for ESP32 communication
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - iot-mqtt-secrets:/mosquitto/secrets:ro
+      - mosquitto_data:/mosquitto/data
+
+  # Receives ESP32 telemetry, runs ML, and stores history in Azure
+  subscriber:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: python backend/mqtt/subscriber.py
+    env_file:
+      - .env
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+    depends_on:
+      - mosquitto
+
+  # Flask History API and MQTT Control API
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: python docker/run_api.py
+    env_file:
+      - .env
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+    ports:
+      - "127.0.0.1:5001:5001"
+    depends_on:
+      - mosquitto
+
+  # Grafana dashboard - temporary port 3001 for migration testing
+  grafana:
+    image: grafana/grafana:13.2.3
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_PATHS_CONFIG: /grafana-private/grafana.ini
+      GF_PLUGINS_PREINSTALL: "grafana-mqtt-datasource@1.3.8,yesoreyeram-infinity-datasource@4.1.1,volkovlabs-form-panel@6.3.6,marcusolsson-dynamictext-panel@6.3.0"
+    volumes:
+      - iot-grafana-data:/var/lib/grafana
+      - iot-grafana-config:/grafana-private:ro
+    depends_on:
+      - api
+      - mosquitto
+
+# Persistent Docker volumes
+volumes:
+  # Existing private MQTT password hashes
+  iot-mqtt-secrets:
+    external: true
+    name: iot-mqtt-secrets
+
+  # Persistent Mosquitto data
+  mosquitto_data:
+
+  # Existing Grafana data volume
+  iot-grafana-data:
+    external: true
+    name: iot-grafana-data
+
+  # Private Grafana configuration, including SMTP settings
+  iot-grafana-config:
+    external: true
+    name: iot-grafana-config

@@ -1,153 +1,257 @@
 # Operations, Setup, Troubleshooting and Validation
-## Runbook · SOFE 4610U · 4 November 2026
 
-**Repository:** https://github.com/dp0912/IoT-Equipment-Condition-Monitoring-System  
-**Environment:** macOS (Apple Silicon/Homebrew), VS Code, Arduino IDE, ESP32, local Mosquitto and Grafana. Run commands at repository root unless stated otherwise.
+**Project:** IoT Equipment Condition Monitoring System
+**Course:** SOFE 4610U — Fall 2026
+**Environment:** MacBook Air (Apple Silicon), Docker Desktop, ESP32, Azure and Grafana
 
-## 1. First-time configuration
+This guide describes the current Docker-based deployment.
 
-**Get the code and Python dependencies:**
+## 1. First-Time Setup
+
+### Clone the repository
 
 ```bash
 git clone https://github.com/dp0912/IoT-Equipment-Condition-Monitoring-System.git
 cd IoT-Equipment-Condition-Monitoring-System
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
+```
+
+### Configure environment variables
+
+```bash
 cp .env.example .env
 ```
 
-**Configure `.env` privately:** Set the actual MQTT broker's reachable host and matching username/password. For the local Flask control, set `CONTROL_USERNAME`, strong `CONTROL_PASSWORD` (12+ characters), random `CONTROL_SESSION_SECRET` (32+ characters), and permitted `CONTROL_ALLOWED_ORIGINS`. Configure the Azure Table Storage variables expected by `backend/azure/storage.py` and `backend/azure/query_history.py` using your valid Azure connection settings. Email is optional; enabling it requires SMTP host, port, sending address, app password, and recipient. `.env.example` is a template, not a working secret file. Never commit `.env`.
+Enter your actual MQTT, Azure, operator and optional SMTP settings in `.env`.
 
-**Firmware:** Open `firmware/esp32/equipment_monitor/equipment_monitor.ino` in Arduino IDE. Create the private `secrets.h` used by the sketch with your Wi-Fi and MQTT credentials (match its actual required symbol names). Install ESP32 board package and the required Arduino libraries `DHT`, `PubSubClient`, and `ArduinoJson`; `Wire` and `Preferences` are part of the ESP32 toolchain. Select **ESP32 Dev Module** and the correct USB serial port. Upload and use Serial Monitor at **115200 baud**. Do not change working GPIO connections while energized.
+Do not commit the real `.env` file.
 
-**Broker:** Mosquitto is installed/configured separately. On an Apple Silicon Mac, broker configuration is commonly at `/opt/homebrew/etc/mosquitto/mosquitto.conf`; authentication password files must be secured. Configure a listener reachable from the ESP32 LAN, require authentication, and keep port 1883 off the public internet. If the Mac IP changes, align the broker listener, `.env`, and ESP32 secrets. Avoid starting a second broker when port 1883 is already occupied.
+### Configure the ESP32
 
-**Grafana:** Install or start Grafana with Homebrew, then import `dashboard/grafana/iot-equipment-live-dashboard.json`. Match MQTT and Infinity datasource identifiers to your local installation. Install the plugins required by actual panels (MQTT datasource, Infinity datasource, Business Forms and Business Text/Dynamic Text). Business Forms login and thresholds depend on the local Flask API being alive. The illustrative `docs/images/*.png` images are for README presentation, not functioning dashboards.
+Open:
 
-## 2. Daily startup — correct sequence
+`firmware/esp32/equipment_monitor/equipment_monitor.ino`
 
-**Terminal A — broker check**
+Create the local `secrets.h` file beside the sketch with your Wi-Fi and MQTT credentials.
+
+The ESP32 must connect to the Mac's current LAN IP on MQTT port 1883.
+
+Select ESP32 Dev Module in Arduino IDE. Upload the firmware and open Serial Monitor at 115200 baud.
+
+### Prepare Docker Volumes
+
+The Compose configuration requires external volumes:
 
 ```bash
-brew services start mosquitto
-lsof -nP -iTCP:1883 -sTCP:LISTEN
+docker volume create iot-mqtt-secrets
+docker volume create iot-grafana-data
+docker volume create iot-grafana-config
 ```
 
-**Terminal B — Python subscriber (leave running)**
+The MQTT secrets volume must contain `/secrets/passwd`, readable by the Mosquitto container user.
+
+The private Grafana config volume must contain `/grafana.ini`, corresponding to `/grafana-private/grafana.ini` in the container.
+
+Creating an empty volume is not enough. Existing users should preserve their already configured volumes instead of recreating private settings.
+
+The Compose-managed `mosquitto_data` volume stores MQTT persistence.
+
+Never commit password files, Azure credentials, Grafana private settings or ESP32 secrets.
+
+## 2. Daily Startup
+
+Open Docker Desktop on the Mac.
+
+From the repository root, run:
 
 ```bash
-source .venv/bin/activate
-python backend/mqtt/subscriber.py
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
 ```
 
-This consumes MQTT messages, produces Azure SUMMARY/EVENT uploads, ML results, equipment alerts, connectivity state and email messages when enabled.
+The four services should show `Up`:
 
-**Terminal C — single Flask History + Control API (leave running)**
+- mosquitto
+- subscriber
+- api
+- grafana
 
-```bash
-source .venv/bin/activate
-python backend/azure/history_api.py
-```
-
-No extra `control_api.py` server is needed. The same Flask process provides historical endpoints and authenticated configuration controls on `127.0.0.1:5001`.
-
-**Terminal D — Grafana**
+If Homebrew Mosquitto or Grafana is occupying the same ports, stop the conflicting services before starting Docker:
 
 ```bash
-brew services start grafana
-```
-
-Visit `http://localhost:3000`. Plug the ESP32 into USB and verify it connects to Wi-Fi and MQTT. Local sensor state can continue without a browser, but Azure, ML, email and dashboards need their respective processes running.
-
-## 3. Quick checks
-
-```bash
-# Flask alive and MQTT control connection state
-curl -s http://127.0.0.1:5001/api/health
-
-# Latest stored Azure records (when credentials and data are available)
-curl -s 'http://127.0.0.1:5001/api/history/summary?limit=2'
-curl -s 'http://127.0.0.1:5001/api/history/events?limit=2'
-
-# Source and tests; run from repository root
-python -m compileall -q backend ml
-python -m unittest discover -s tests -v
-python -m json.tool dashboard/grafana/iot-equipment-live-dashboard.json > /dev/null
-```
-
-For a broker subscription, use valid credentials without saving them in shell history. Example using interactive password entry in `zsh` (replace host with your broker address):
-
-```bash
-read -s 'MQTT_PASS?MQTT password: '; echo
-mosquitto_sub -h 127.0.0.1 -p 1883 -u esp32_monitor \
-  -P "$MQTT_PASS" -t 'equipment/ESP32-001/telemetry' -C 1 -W 15
-unset MQTT_PASS
-```
-
-If the broker is bound only to a LAN interface rather than loopback, replace `127.0.0.1` accordingly. A failed subscription is not proof the ESP32 or data source is broken; first confirm the listener, IP, credentials and publish topic.
-
-## 4. What the operator should see
-
-**Live:** Current temperature/humidity/vibration, NORMAL/WARNING/CRITICAL, ONLINE/OFFLINE, sensor health, equipment profile, confirmed thresholds, audible alarm acknowledgement, transition events and ML score/state.
-
-**Historical:** SUMMARY trends and EVENT records from Azure within selected dates. Historical panels require an operational subscriber, Azure credentials/storage and Flask history API; empty panels may simply mean no saved data for that period.
-
-**Configuration:** Sign in through the dashboard's operator form, select one of eight equipment profiles or edit valid warning/critical thresholds, press Apply, and verify ESP32 `APPLIED` acknowledgement plus an updated `config` MQTT publication. A failed request or timeout does not certify an applied change. The GPIO13 button (or authorized alarm acknowledgement command, when available) silences the critical buzzer while leaving the actual condition unchanged.
-
-## 5. Essential troubleshooting
-
-| Symptom | Check first |
-|---|---|
-| No serial/sensor measurements | USB serial port, 115200 baud, DHT GPIO27, MPU SDA21/SCL22, sensor power/common ground |
-| Buzzer silent in CRITICAL | GPIO23 and buzzer GND, suitable driver/rating, active condition, acknowledgement state |
-| No MQTT telemetry | ESP32 Wi-Fi, broker listener IP:1883, authentication, `telemetry` topic, Mac IP changed |
-| Broker not starting | `lsof` for another process already using port 1883; Mosquitto config/service log |
-| Grafana live empty | MQTT datasource connection, exact topic, ESP32 messages, query transformations |
-| Grafana history empty | Flask `/api/health`, Azure `/api/history/*`, saved data in range, Infinity datasource |
-| Operator Apply fails | Session expiry, CSRF token, strong control secrets, control MQTT status, ESP32 command ACK |
-| No email | `EMAIL_ENABLED`, SMTP credentials/app password, recipient, actual state transition, subscriber running |
-| No ML data | Model file present, valid 30-second summary windows, subscriber log and `/ml` topic |
-| Device falsely OFFLINE | Actual telemetry gaps, Wi-Fi dropout, backend blocking, freshness timeout (~10 seconds) |
-
-## 6. Final acceptance checklist — rerun on current build
-
-| ID | Test | Expected evidence | Status |
-|---|---|---|---|
-| T01 | Compile/upload current firmware | Arduino IDE successful build + serial readings | NOT REVALIDATED |
-| T02 | DHT + MPU and sensor fault handling | Valid values; health flags change when sensor unavailable | NOT REVALIDATED |
-| T03 | Local NORMAL / WARNING / CRITICAL | Correct LED; CRITICAL audible 200/800ms pattern | NOT REVALIDATED |
-| T04 | Physical alarm acknowledgement | Button silences buzzer; CRITICAL condition remains | NOT REVALIDATED |
-| T05 | All eight equipment profiles | Selected profile and confirmed values update | NOT REVALIDATED |
-| T06 | Authorized threshold editing | Flask response matches ESP32 ACK; retained config updated | NOT REVALIDATED |
-| T07 | Unauthenticated/invalid control | Invalid login/CSRF/threshold rejected; no ESP32 apply | NOT REVALIDATED |
-| T08 | Live MQTT + Grafana | Sensor, status, condition, health, config and alert panels | NOT REVALIDATED |
-| T09 | Azure + History API | SUMMARY and EVENT records; query/graph by date | NOT REVALIDATED |
-| T10 | ML inference | 30-second window produces model label and score | NOT REVALIDATED |
-| T11 | Email state transitions | WARNING/CRITICAL/RECOVERY include equipment profile | NOT REVALIDATED |
-| T12 | Network / device interruption | OFFLINE then ONLINE events and optional email | NOT REVALIDATED |
-| T13 | Automated code checks | Python compile, unittests, dashboard JSON valid | RERUN AFTER CHANGES |
-
-**Reporting rule:** Record actual date/time, environment, steps, expected result, observed result, outcome and sanitized evidence. The earlier three structural tests passed before a previous cleanup, but that does **not** establish all hardware/cloud cases passed on the final version. Do not use the illustrative Grafana picture as test evidence.
-
-## 7. Shutdown and version control
-
-Stop subscriber and Flask terminals with `Control+C`. Optionally stop local services if not needed:
-
-```bash
-brew services stop grafana
 brew services stop mosquitto
+brew services stop grafana
 ```
 
-The ESP32 can be unplugged after the demonstration. Pending in-memory Azure/email jobs may not survive abrupt shutdown, so check for queued output first. To publish documentation after reviewing it:
+Docker uses these host ports:
+
+| Service | Host port |
+|---|---|
+| Mosquitto | 1883 |
+| Grafana | 3000 |
+| Flask API | 5001, localhost only |
+
+Inside Docker, the Python services connect to `mosquitto:1883`.
+
+## 3. Verify the Monitoring Pipeline
+
+### Check running services
 
 ```bash
-git status --short
-git add docs
-# Review the staged changes before committing:
-git diff --cached --stat
-git commit -m 'docs: consolidate current IoT technical and operations guides'
-git push origin main
+docker compose ps
 ```
 
-For detailed pin connections, refer to `docs/wiring/esp32_wiring.md`. For a concise public summary, refer to `README.md`. No separate old motor/LCD/IR or preliminary MQTT-only documents are required for this current implementation.
+### Check sensor telemetry and processing
+
+```bash
+docker compose logs --tail=30 subscriber
+```
+
+Look for incoming measurements, SUMMARY generation, Isolation Forest inference and Azure write confirmations.
+
+### Check API
+
+```bash
+curl http://127.0.0.1:5001/api/health
+```
+
+A healthy result should contain `status: OK` and `mqtt_connected: true`.
+
+### Check Azure historical data
+
+```bash
+curl 'http://127.0.0.1:5001/api/history/summary?limit=2'
+curl 'http://127.0.0.1:5001/api/history/events?limit=2'
+```
+
+A successful SUMMARY query does not establish that EVENT records have been tested.
+
+### Open Grafana
+
+Visit:
+
+http://localhost:3000
+
+The dashboard JSON is:
+
+`dashboard/grafana/iot-equipment-live-dashboard.json`
+
+Existing Grafana data is stored in the persistent volume. Fresh installations may require plugin, data source and dashboard configuration.
+
+## 4. Functional Testing
+
+### Test A — Real-Time Monitoring
+
+Verify temperature, humidity, vibration, condition and connectivity in Grafana.
+
+### Test B — Machine Learning
+
+Verify a 30-second aggregation window and an Isolation Forest result.
+
+### Test C — Azure Storage
+
+Confirm SUMMARY data is saved and returned through the History API.
+
+Trigger a safe condition transition to separately verify EVENT storage.
+
+### Test D — Remote Controls
+
+Sign in through Grafana and apply an equipment profile or threshold change.
+
+Verify the ESP32 responds with `APPLIED` and publishes its confirmed configuration.
+
+A command timeout is not evidence that a change was applied.
+
+Sign out and verify protected controls reject unauthorized changes.
+
+### Test E — Local Alarms
+
+Using controlled demonstration thresholds, verify NORMAL, WARNING and CRITICAL LED behaviour.
+
+Verify the CRITICAL buzzer and GPIO13 acknowledgement button.
+
+### Test F — Email Notifications
+
+Configure and enable SMTP email in your local `.env`.
+
+Verify actual WARNING, CRITICAL, RECOVERY and connectivity notifications before marking this test passed.
+
+### Test G — Offline and Recovery
+
+Disconnect the ESP32 temporarily and verify OFFLINE detection. Reconnect it and check ONLINE recovery.
+
+## 5. Automated Checks
+
+From the repository root:
+
+```bash
+python3 -m compileall -q backend ml
+python3 -m unittest discover -s tests -v
+python3 -m json.tool dashboard/grafana/iot-equipment-live-dashboard.json > /dev/null
+docker compose config --quiet
+```
+
+Record results rather than assuming tests passed because their code exists.
+
+## 6. Troubleshooting
+
+| Problem | What to check |
+|---|---|
+| Mosquitto not starting | Port 1883 conflicts, password file and Docker volume permissions |
+| ESP32 not connecting | Wi-Fi, Mac LAN IP, broker port and MQTT credentials |
+| No subscriber measurements | ESP32 status, MQTT broker and subscriber logs |
+| Flask API restarting | API logs, imports, environment settings |
+| No Azure history | Azure credentials, summary writes and history API |
+| Grafana dashboard empty | MQTT/Infinity data sources, API, plugins and time range |
+| Operator Apply fails | Session, CSRF, MQTT connection and ESP32 acknowledgement |
+| Email not received | EMAIL_ENABLED, SMTP credentials, recipient and actual alert trigger |
+
+Useful diagnostics:
+
+```bash
+docker compose logs --tail=50 mosquitto
+docker compose logs --tail=50 subscriber
+docker compose logs --tail=50 api
+docker compose logs --tail=50 grafana
+```
+
+## 7. Safe Shutdown
+
+From the project root:
+
+```bash
+docker compose down
+```
+
+This stops the four services and preserves named volumes.
+
+If standalone Homebrew instances were started separately:
+
+```bash
+brew services stop mosquitto
+brew services stop grafana
+```
+
+Do not use `docker compose down -v` for normal shutdown.
+
+Unplug the ESP32 if its physical monitoring should also stop.
+
+## 8. Evidence for Final Report
+
+For each test, save:
+
+- Date and time.
+- Git commit and firmware version.
+- Steps performed.
+- Expected result.
+- Actual result.
+- PASS/FAIL outcome.
+- Screenshots or sanitized logs.
+
+Use the current firmware and Docker services for final evaluation.
+
+See:
+
+- `docs/testing/current_validation.md`
+- `docs/architecture/system_architecture.md`
+- `docs/guides/01_TECHNICAL_GUIDE.md`

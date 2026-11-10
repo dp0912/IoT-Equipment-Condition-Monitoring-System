@@ -91,3 +91,56 @@ Local MQTT on port 1883 uses broker authentication but, **unless separately conf
 | `docs/wiring/esp32_wiring.md` | Current hardware GPIO reference |
 
 **Limitations:** Single sensing unit and one active profile; non-calibrated ambient and vibration measurements; no physical equipment control or certified safety hardware; dependence on Mac/local services; no MQTT transport TLS in default LAN setup; cloud write and email queues are not durable; cloud-record completeness depends on service uptime; the current model is experimental; SMS is not implemented; regenerated dashboard images are design illustrations. All system-level acceptance cases must be rechecked on the final firmware and active services.
+
+---
+
+## Current Docker Compose Deployment
+
+The primary development deployment now uses Docker Compose on a Mac.
+
+The repository-root `compose.yaml` defines four services:
+
+| Service | Purpose |
+|---|---|
+| `mosquitto` | Authenticated MQTT broker, host port 1883 |
+| `subscriber` | Python telemetry processing, aggregation, Isolation Forest, Azure writes and email alerts |
+| `api` | Flask/Waitress history retrieval, authentication and control endpoints on localhost:5001 |
+| `grafana` | Live and historical dashboard on localhost:3000 |
+
+The subscriber and API containers communicate with Mosquitto using the Docker service hostname `mosquitto` on port 1883. The ESP32 connects to the Mac's current LAN IP.
+
+Docker persistent volumes retain MQTT data, Grafana data and private configuration. The `.env`, ESP32 `secrets.h` and private Docker secrets must remain outside GitHub.
+
+Start the complete stack:
+
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+Check the API:
+
+```bash
+curl http://127.0.0.1:5001/api/health
+```
+
+Stop the stack without deleting persistent volumes:
+
+```bash
+docker compose down
+```
+
+The older Homebrew/manual-Python deployment remains an alternative, but should not be run simultaneously on conflicting ports.
+
+### Current Data Paths
+
+- Live: ESP32 → Mosquitto → Grafana MQTT datasource.
+- Processing: Mosquitto → Python subscriber → aggregation, ML and alerts.
+- Historical: Python subscriber → Azure Table Storage → Flask History API → Grafana Infinity datasource.
+- Controls: Grafana → authenticated Flask API → MQTT → ESP32 → command acknowledgement.
+
+Azure `SUMMARY` and `EVENT` are logical record types in the configured Azure table, not necessarily separate tables.
+
+The current system supports SMTP email alert functionality; actual email delivery requires validation. SMS/text notifications are a planned enhancement, not an implemented feature.
+
+The architecture diagram is available at `docs/images/system-architecture.png`.

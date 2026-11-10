@@ -963,32 +963,6 @@ If the Mac's LAN IP changes, update the ESP32's `secrets.h` and reupload the fir
 
 ---
 
-## 🧪 Testing & Validation
-
-The project includes functionality and integration testing across hardware, communication, backend, cloud, visualization, and security components.
-
-### Current Validation Summary
-
-| Test Area | Current Status |
-|---|---|
-| ESP32 sensor acquisition | ✅ Demonstrated |
-| MQTT telemetry publishing | ✅ Demonstrated |
-| Docker Mosquitto connectivity | ✅ Demonstrated |
-| Python MQTT subscriber | ✅ Demonstrated |
-| Isolation Forest inference | ✅ Demonstrated |
-| Azure SUMMARY record writes | ✅ Demonstrated |
-| Flask API health | ✅ Demonstrated |
-| Grafana dashboard operation | ✅ Demonstrated |
-| Remote equipment configuration | 🔄 Further testing |
-| WARNING/CRITICAL alarm behaviour | 🔄 Further testing |
-| Email alert delivery | 🔄 Further testing |
-| Offline/recovery alert behaviour | 🔄 Further testing |
-| Long-duration reliability | 🔄 Further testing |
-| SMS/text notifications | 📋 Planned |
-
-These statuses reflect the currently documented integration results, not a claim of completed production validation.
-
----
 
 ## 📚 Project Documentation
 
@@ -1073,30 +1047,11 @@ Private environment files, Wi-Fi credentials, MQTT password files, and persisten
 
 ---
 
-## 🔮 Future Improvements
-
-Potential enhancements include:
-
-- Critical SMS/text-message notifications.
-- Additional ESP32 monitoring nodes.
-- Broader predictive maintenance datasets.
-- Additional anomaly detection models.
-- Improved dashboard alert visualization.
-- Automated deployment and testing pipelines.
-- Cloud-hosted backend deployment.
-- TLS-secured device-to-broker communication.
-- Extended reliability and fault-recovery testing.
-
-These are planned improvements and are not represented as completed functionality.
-
----
-
 <div align="center">
 
 ### Built with ESP32 • Python • MQTT • Docker • Microsoft Azure • Grafana • Scikit-learn
 
 **Transforming real-time sensor measurements into intelligent equipment insights.**
 
-*SOFE 4610U — Design of IoT | Ontario Tech University*
 
 </div>

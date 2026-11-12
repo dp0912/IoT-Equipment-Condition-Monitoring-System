@@ -12,3 +12,14 @@
 | Active buzzer/driver | 23 | Buzzer negative/common to GND |
 
 Use a shared ground, avoid driving a high-current buzzer directly from GPIO, and disconnect power before rewiring. No physical machine is controlled; the eight equipment types are selectable **monitoring profiles**.
+
+
+## Hardware precautions
+
+- Power the ESP32 from a suitable USB supply.
+- Use an appropriate current-limiting resistor for each LED.
+- Supply the DHT11 and MPU module according to their ratings.
+- Connect all modules to a common ground.
+- Use a transistor driver if the buzzer exceeds ESP32 GPIO ratings.
+- Disconnect power before changing wiring.
+- No actual motor, pump or industrial machine is controlled.

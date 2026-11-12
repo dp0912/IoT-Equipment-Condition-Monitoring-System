@@ -198,7 +198,6 @@ IoT-Equipment-Condition-Monitoring-System/
 - [System Architecture](docs/architecture/system_architecture.md)
 - [Operations Guide](docs/guides/02_OPERATIONS_GUIDE.md)
 - [ESP32 Wiring](docs/wiring/esp32_wiring.md)
-- [Hardware Components](hardware/components.md)
 - [ESP32 Configuration Example](firmware/esp32/equipment_monitor/secrets.example.h)
 
 ## Security

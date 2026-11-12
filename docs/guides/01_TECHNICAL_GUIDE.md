@@ -1,3 +1,5 @@
+> **Current deployment notice (November 2026):** The Mac-hosted MQTT architecture described in parts of this earlier technical guide has been superseded by the Azure TLS deployment. Refer to the [current architecture](../architecture/system_architecture.md) and [current operations guide](02_OPERATIONS_GUIDE.md). The original technical discussion is retained as development history.
+
 # IoT Equipment Condition Monitoring System
 ## Technical Project Guide · SOFE 4610U · 4 November 2026
 

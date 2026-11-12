@@ -1,116 +1,108 @@
-# System Architecture — IoT Equipment Condition Monitoring
+# System Architecture — Azure Deployment
 
-**Course:** SOFE 4610U — Design and Analysis of IoT Software
-**Deployment:** ESP32 + Mac (Docker Compose) + Microsoft Azure
+## Current implementation
 
-![Current System Architecture](../images/system-architecture.png)
+The system uses one ESP32, an Azure Ubuntu VM, Azure Table Storage,
+and one Grafana OSS dashboard running on the Mac.
 
-## 1. Edge Layer — ESP32
+```mermaid
+flowchart TD
+    ESP[ESP32 + DHT11 + MPU6050]
+    MQTT[Azure VM - Mosquitto MQTT]
+    SUB[Python Subscriber + Isolation Forest]
+    STORE[Azure Table Storage]
+    API[Flask History and Control API]
+    GRAF[Mac - Grafana OSS]
 
-The project uses an ESP32-WROOM-32 connected to:
+    ESP -->|MQTT over TLS - 8883| MQTT
+    MQTT --> SUB
+    SUB --> STORE
+    STORE --> API
+    MQTT -->|MQTT over TLS - 8883| GRAF
+    API <-->|SSH tunnel - localhost:5001| GRAF
+    API -->|Authenticated commands| MQTT
+    MQTT --> ESP
+```
 
-| Hardware | ESP32 GPIO | Function |
-|---|---|---|
-| DHT11 | 27 | Temperature and humidity |
-| MPU6050/MPU6500 | SDA 21, SCL 22 | Vibration measurement |
-| Green LED | 25 | NORMAL indication |
-| Yellow LED | 26 | WARNING indication |
-| Red LED | 33 | CRITICAL indication |
-| Active buzzer | 23 | Audible critical alert |
-| Push button | 13 | Alarm acknowledgement |
+## ESP32
 
-The ESP32 collects measurements approximately every 2.5 seconds, applies configurable equipment thresholds, classifies conditions, operates LEDs and buzzer, and publishes MQTT telemetry.
+- Temperature and humidity: DHT11, GPIO27
+- Vibration: MPU6050/MPU6500, GPIO21 and GPIO22
+- Condition classification: NORMAL, WARNING, CRITICAL
+- Local indicators: three LEDs and a buzzer
+- Physical alarm acknowledgement: GPIO13
+- Equipment profiles: eight selectable monitoring profiles
 
-Eight monitoring profiles are supported: MOTOR, PUMP, COMPRESSOR, FAN, CONDENSER, HEAT_EXCHANGER, AHU and CHILLER.
+WiFiManager handles Wi-Fi onboarding.
 
-One monitoring profile is active at a time. Profiles represent monitoring scenarios, not eight physically connected machines. The project does not control a physical motor or industrial equipment.
+The ESP32 creates `EquipmentMonitor-Setup` when its saved Wi-Fi
+is unavailable. The operator can also enter `W` in Arduino
+Serial Monitor to open the setup portal manually.
 
-Wi-Fi and MQTT settings are read from the private, Git-ignored `secrets.h` file. The firmware does not use WiFiManager.
+The portal is accessible at `http://192.168.4.1` while the
+computer is connected to `EquipmentMonitor-Setup`.
 
-## 2. Local Monitoring Layer — Docker Compose
+The ESP32 has been configured on both a home Wi-Fi network and
+an iPhone hotspot. This is manual network reconfiguration,
+not automatic roaming across multiple saved networks.
 
-The Mac hosts four Docker Compose services defined in the repository-root `compose.yaml`.
+## Azure Ubuntu VM
 
-| Docker service | Purpose |
+Docker Compose runs three services:
+
+| Service | Responsibility |
 |---|---|
-| mosquitto | Authenticated MQTT broker on port 1883 |
-| subscriber | Python telemetry ingestion, aggregation, Isolation Forest ML, Azure storage writes and email notifications |
-| api | Flask/Waitress history retrieval, authentication and remote-control API on localhost:5001 |
-| grafana | Live/historical dashboard and operator controls on localhost:3000 |
+| mosquitto | Authenticated MQTT broker |
+| subscriber | Telemetry, 30-second summaries, ML, email, Azure writes |
+| api | History retrieval and authenticated remote controls |
 
-The ESP32 connects to the Mac's LAN IP on MQTT port 1883. Python services connect to `mosquitto:1883` inside the Docker network.
+Deployment file: `compose.cloud.yaml`.
 
-### Processing
+Mosquitto uses TCP 8883 with TLS for remote MQTT clients.
+TCP 1883 is used inside Docker and is not publicly published.
 
-The Python subscriber validates incoming measurements, builds approximately 30-second summaries, detects condition transitions, runs Isolation Forest anomaly inference and publishes derived MQTT messages.
+The Flask API is bound to `127.0.0.1:5001` on the VM.
 
-ML anomaly detection is separate from the ESP32 threshold classification. An ML anomaly can be reported while the equipment condition remains NORMAL.
+## Azure Storage
 
-### MQTT Topics
+Azure Table Storage stores SUMMARY and EVENT records.
 
-The current device ID is `ESP32-001`.
+The Flask API retrieves stored information for Grafana
+historical graphs and event tables.
 
-- `equipment/ESP32-001/telemetry`
-- `equipment/ESP32-001/status`
-- `equipment/ESP32-001/config`
-- `equipment/ESP32-001/sensor_health`
-- `equipment/ESP32-001/control_status`
-- `equipment/ESP32-001/commands`
-- `equipment/ESP32-001/command_ack`
-- `equipment/ESP32-001/alerts`
-- `equipment/ESP32-001/connectivity`
-- `equipment/ESP32-001/ml`
+## Mac Grafana
 
-## 3. Cloud Layer — Microsoft Azure
+Grafana OSS runs locally at `http://localhost:3000`.
 
-The Python backend writes processed records to Azure Table Storage.
+One dashboard contains:
+- Live temperature, humidity, vibration and equipment status
+- MQTT connectivity, sensor health and ML anomaly information
+- Azure historical trends and alerts
+- Operator authentication, profiles and thresholds
 
-The application distinguishes two logical record types within the configured Azure table:
+The MQTT data source connects directly to the Azure broker
+using TLS and the trusted private-CA certificate.
 
-- **SUMMARY:** Aggregated measurements, sample counts and statistics.
-- **EVENT:** Condition transitions and related monitoring events.
+The Infinity data source accesses the Flask API over an
+SSH local-port-forwarding tunnel.
 
-The table is configured using `AZURE_TABLE_NAME`, and access uses `AZURE_STORAGE_CONNECTION_STRING`.
+Historical zooming changes the dashboard-wide time range.
+Live panels may show No data while older dates are selected.
 
-The Flask History API retrieves historical records through:
+## Notifications
 
-- `GET /api/history/summary`
-- `GET /api/history/events`
+SMTP email notifications support equipment condition changes,
+recovery, offline and online events.
 
-The current code does not establish a mandatory seven-day retention policy.
+SMS notifications are planned, not implemented.
 
-## 4. Visualization and Alerts Layer
+## Security
 
-### Grafana Live Dashboard
+Private MQTT passwords, Azure credentials, server certificate
+private keys and operator secrets remain outside Git.
 
-Grafana uses its MQTT data source to receive real-time telemetry directly from Mosquitto. Live monitoring does not require the data to pass through Azure first.
+Grafana and the Flask API are not exposed as public web
+services in the current deployment.
 
-### Grafana Historical Dashboard
-
-Grafana uses an HTTP/Infinity data source to request stored records from the Flask History API, which queries Azure Table Storage.
-
-### Remote Configuration
-
-1. Operator signs in through Grafana.
-2. Flask authenticates the operator and validates protected requests.
-3. The API publishes a profile, threshold or alarm command through MQTT.
-4. The ESP32 validates and applies or rejects the command.
-5. The ESP32 publishes `command_ack` and confirmed configuration.
-6. The application reports success only after matching acknowledgement.
-
-### Notifications
-
-The Python backend contains SMTP email notifications for WARNING, CRITICAL, RECOVERY and connectivity events. Delivery requires valid SMTP credentials.
-
-SMS/text notifications are planned, not implemented.
-
-## 5. Security and Reliability
-
-- Mosquitto requires username/password authentication.
-- MQTT broker data is stored using a Docker persistent volume.
-- Flask operator controls use sessions and request protection.
-- The ESP32 supports Wi-Fi and MQTT reconnection.
-- Flask and Grafana host bindings use localhost.
-- Sensitive settings remain in untracked files or private Docker volumes.
-
-MQTT port 1883 is not TLS-encrypted in this deployment. It should only be used on a trusted local network.
+This is an educational IoT prototype, not a certified
+industrial protection or machine-control system.

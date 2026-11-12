@@ -47,3 +47,6 @@ cloud-private/
 # Local backup and certificate source
 *.pre-azure.bak
 firmware/esp32/equipment_monitor/ca.crt
+
+# Local firmware backups
+*.bak

@@ -1,187 +1,150 @@
-# Operations and Setup Guide
+# Operations Guide — Current Azure Deployment
 
-**Project:** IoT Equipment Condition Monitoring System
-**Course:** SOFE 4610U — Fall 2026
-**Environment:** MacBook Air (Apple Silicon), Docker Desktop, ESP32, Azure and Grafana
+This guide documents the existing deployment.
+It does not require another Grafana subscription or
+a second Grafana dashboard.
 
-This guide describes the current Docker-based deployment.
+## Components
 
-## 1. First-Time Setup
+- ESP32: physical sensors and local condition monitoring
+- Azure Ubuntu VM: Docker Mosquitto, subscriber and Flask API
+- Azure Table Storage: persistent history
+- Mac: free Grafana OSS using Homebrew
 
-### Clone the repository
+## Azure backend
+
+The Azure VM uses:
+
+`compose.cloud.yaml`
+
+Services:
+
+- `mosquitto`
+- `subscriber`
+- `api`
+
+The Compose services use `restart: unless-stopped`.
+
+The existing cloud deployment can be managed from an
+authenticated Azure SSH session using:
 
 ```bash
-git clone https://github.com/dp0912/IoT-Equipment-Condition-Monitoring-System.git
-cd IoT-Equipment-Condition-Monitoring-System
+cd ~/IoT-Equipment-Condition-Monitoring-System
+docker compose -f compose.cloud.yaml up -d --build
 ```
 
-### Configure environment variables
+Do not start a second local subscriber on the Mac.
+Duplicate subscribers could duplicate historical writes
+and email alerts.
 
-```bash
-cp .env.example .env
-```
+## Private files required on Azure
 
-Enter your actual MQTT, Azure, operator and optional SMTP settings in `.env`.
+- `.env` — MQTT, Azure, operator and email configuration
+- `cloud-private/mqtt-certs/server.crt`
+- `cloud-private/mqtt-certs/server.key`
+- `cloud-private/mqtt-secrets/passwd`
 
-Do not commit the real `.env` file.
+Never commit these private files.
 
-### Configure the ESP32
+The root CA certificate used by Grafana and the ESP32
+must correspond to the CA that signed the MQTT server
+certificate.
 
-Open:
+## ESP32 configuration
+
+Firmware:
 
 `firmware/esp32/equipment_monitor/equipment_monitor.ino`
 
-Create the local `secrets.h` file beside the sketch with your Wi-Fi and MQTT credentials.
+Private header:
 
-The ESP32 must connect to the Mac's current LAN IP on MQTT port 1883.
+`firmware/esp32/equipment_monitor/secrets.h`
 
-Select ESP32 Dev Module in Arduino IDE. Upload the firmware and open Serial Monitor at 115200 baud.
+The MQTT hostname is:
 
-### Prepare Docker Volumes
+`iot-monitor-dp0912.northcentralus.cloudapp.azure.com`
 
-The Compose configuration requires external volumes:
+Remote MQTT uses TLS on port 8883.
 
-```bash
-docker volume create iot-mqtt-secrets
-docker volume create iot-grafana-data
-docker volume create iot-grafana-config
-```
+The firmware uses WiFiManager for network onboarding.
 
-The MQTT secrets volume must contain `/secrets/passwd`, readable by the Mosquitto container user.
+To manually open Wi-Fi configuration, enter `W` in
+Arduino Serial Monitor at 115200 baud.
 
-The private Grafana config volume must contain `/grafana.ini`, corresponding to `/grafana-private/grafana.ini` in the container.
+Connect a computer to `EquipmentMonitor-Setup`, open
+`http://192.168.4.1`, and configure the desired Wi-Fi.
 
-Creating an empty volume is not enough. Existing users should preserve their already configured volumes instead of recreating private settings.
+Manual setup is required when switching between different
+networks; multiple-network automatic roaming is not implemented.
 
-The Compose-managed `mosquitto_data` volume stores MQTT persistence.
-
-Never commit password files, Azure credentials, Grafana private settings or ESP32 secrets.
-
-## 2. Daily Startup
-
-Open Docker Desktop on the Mac.
-
-From the repository root, run:
+## Start Grafana on the Mac
 
 ```bash
-docker compose config --quiet
-docker compose up -d --build
-docker compose ps
+brew services start grafana
 ```
 
-The four services should show `Up`:
+Dashboard:
 
-- mosquitto
-- subscriber
-- api
-- grafana
+`http://localhost:3000`
 
-If Homebrew Mosquitto or Grafana is occupying the same ports, stop the conflicting services before starting Docker:
+The existing MQTT data source connects directly to Azure
+using TLS and CA verification.
+
+Keep the existing data sources and single dashboard.
+
+## Access the Azure API from the Mac
+
+Open a separate Mac Terminal session:
 
 ```bash
-brew services stop mosquitto
-brew services stop grafana
+ssh -o ExitOnForwardFailure=yes -N   -L 127.0.0.1:5001:127.0.0.1:5001   azureuser@iot-monitor-dp0912.northcentralus.cloudapp.azure.com
 ```
 
-Docker uses these host ports:
+Leave this terminal session open while using historical
+data and operator controls.
 
-| Service | Host port |
-|---|---|
-| Mosquitto | 1883 |
-| Grafana | 3000 |
-| Flask API | 5001, localhost only |
+The Infinity data source and Business Forms use the
+local API address `http://127.0.0.1:5001`.
 
-Inside Docker, the Python services connect to `mosquitto:1883`.
+The SSH tunnel does not make the API public.
 
-## 3. Verify the Monitoring Pipeline
+## Grafana time ranges
 
-### Check running services
+For live monitoring, use Last 15 minutes.
 
-```bash
-docker compose ps
-```
+For historical analysis, use Last 7 days or an absolute
+time range. Zooming an old historical graph changes the
+time range for all panels, including live MQTT panels.
 
-### Check sensor telemetry and processing
+To return to live monitoring, select Last 15 minutes again.
 
-```bash
-docker compose logs --tail=30 subscriber
-```
+## Credentials and security
 
-Look for incoming measurements, SUMMARY generation, Isolation Forest inference and Azure write confirmations.
+Keep `.env`, `secrets.h`, the Mosquitto password file,
+and private certificate keys out of GitHub.
 
-### Check API
+Rotate previously exposed passwords across every component
+that uses them. Update the broker, ESP32, subscriber, API
+and Grafana consistently.
 
-```bash
-curl http://127.0.0.1:5001/api/health
-```
+The root CA certificate can be distributed to trusted MQTT
+clients; its private signing key must remain private.
 
-A healthy result should contain `status: OK` and `mqtt_connected: true`.
+## Cost
 
-### Check Azure historical data
+Grafana OSS is free to self-host.
 
-```bash
-curl 'http://127.0.0.1:5001/api/history/summary?limit=2'
-curl 'http://127.0.0.1:5001/api/history/events?limit=2'
-```
+The Azure VM and Azure Storage may incur Azure charges
+depending on the subscription and usage.
 
-### Open Grafana
+The current dashboard remains on the Mac.
+No Azure Managed Grafana service is used.
 
-Visit:
+## Current limitations
 
-http://localhost:3000
-
-The dashboard JSON is:
-
-`dashboard/grafana/iot-equipment-live-dashboard.json`
-
-Existing Grafana data is stored in the persistent volume. Fresh installations may require plugin, data source and dashboard configuration.
-
-## 4. Troubleshooting
-
-| Problem | What to check |
-|---|---|
-| Mosquitto not starting | Port 1883 conflicts, password file and Docker volume permissions |
-| ESP32 not connecting | Wi-Fi, Mac LAN IP, broker port and MQTT credentials |
-| No subscriber measurements | ESP32 status, MQTT broker and subscriber logs |
-| Flask API restarting | API logs, imports, environment settings |
-| No Azure history | Azure credentials, summary writes and history API |
-| Grafana dashboard empty | MQTT/Infinity data sources, API, plugins and time range |
-| Operator Apply fails | Session, CSRF, MQTT connection and ESP32 acknowledgement |
-| Email not received | EMAIL_ENABLED, SMTP credentials, recipient and actual alert trigger |
-
-Useful diagnostics:
-
-```bash
-docker compose logs --tail=50 mosquitto
-docker compose logs --tail=50 subscriber
-docker compose logs --tail=50 api
-docker compose logs --tail=50 grafana
-```
-
-## 5. Safe Shutdown
-
-From the project root:
-
-```bash
-docker compose down
-```
-
-This stops the four services and preserves named volumes.
-
-If standalone Homebrew instances were started separately:
-
-```bash
-brew services stop mosquitto
-brew services stop grafana
-```
-
-Do not use `docker compose down -v` for normal shutdown.
-
-Unplug the ESP32 if its physical monitoring should also stop.
-
-
-## Related Documentation
-
-- [System Architecture](../architecture/system_architecture.md)
-- [Technical Guide](01_TECHNICAL_GUIDE.md)
-- [ESP32 Wiring](../wiring/esp32_wiring.md)
+- One active physical sensing device
+- Manual Wi-Fi reconfiguration between networks
+- Occasional DHT11 reading faults
+- No SMS integration yet
+- No publicly hosted Grafana dashboard
+- Not intended for certified industrial safety applications

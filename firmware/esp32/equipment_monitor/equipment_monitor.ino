@@ -1150,6 +1150,26 @@ void setup() {
 
 void loop() {
 
+
+  // Type W in Serial Monitor to configure Wi-Fi manually.
+  if (Serial.available() > 0) {
+
+    char command = Serial.read();
+
+    if (command == 'W' || command == 'w') {
+
+      if (!wifiManager.getConfigPortalActive()) {
+
+        Serial.println("[WIFI] Manual setup portal started");
+
+        wifiManager.startConfigPortal(
+          "EquipmentMonitor-Setup",
+          WIFI_SETUP_AP_PASSWORD
+        );
+      }
+    }
+  }
+
   handleButton();
 
   maintainNetwork();

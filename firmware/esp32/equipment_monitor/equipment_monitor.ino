@@ -27,6 +27,9 @@
 #include <Wire.h>
 #include <DHT.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <WiFiManager.h>
+#include "mqtt_ca.h"
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
@@ -64,28 +67,29 @@ DHT dht(PIN_DHT, DHT11);
 constexpr char DEVICE_ID[] = "ESP32-001";
 
 constexpr char TOPIC_TELEMETRY[] =
-    "equipment/ESP32-001/telemetry";
+  "equipment/ESP32-001/telemetry";
 
 constexpr char TOPIC_STATUS[] =
-    "equipment/ESP32-001/status";
+  "equipment/ESP32-001/status";
 
 constexpr char TOPIC_CONFIG[] =
-    "equipment/ESP32-001/config";
+  "equipment/ESP32-001/config";
 
 constexpr char TOPIC_HEALTH[] =
-    "equipment/ESP32-001/sensor_health";
+  "equipment/ESP32-001/sensor_health";
 
 constexpr char TOPIC_CONTROL[] =
-    "equipment/ESP32-001/control_status";
+  "equipment/ESP32-001/control_status";
 
 constexpr char TOPIC_COMMAND[] =
-    "equipment/ESP32-001/commands";
+  "equipment/ESP32-001/commands";
 
 constexpr char TOPIC_ACK[] =
-    "equipment/ESP32-001/command_ack";
+  "equipment/ESP32-001/command_ack";
 
-WiFiClient wifiClient;
+WiFiClientSecure wifiClient;
 PubSubClient mqtt(wifiClient);
+WiFiManager wifiManager;
 
 Preferences prefs;
 
@@ -117,65 +121,49 @@ struct Profile {
 
 const Profile PROFILES[] = {
 
-  {
-    "MOTOR",
-    {0, 10, 60, 70},
-    {20, 30, 75, 90},
-    {0, 0, 1.0f, 3.0f}
-  },
+  { "MOTOR",
+    { 0, 10, 60, 70 },
+    { 20, 30, 75, 90 },
+    { 0, 0, 1.0f, 3.0f } },
 
-  {
-    "PUMP",
-    {0, 10, 55, 65},
-    {20, 30, 80, 95},
-    {0, 0, 0.8f, 2.5f}
-  },
+  { "PUMP",
+    { 0, 10, 55, 65 },
+    { 20, 30, 80, 95 },
+    { 0, 0, 0.8f, 2.5f } },
 
-  {
-    "COMPRESSOR",
-    {0, 10, 50, 60},
-    {20, 30, 70, 85},
-    {0, 0, 1.2f, 3.2f}
-  },
+  { "COMPRESSOR",
+    { 0, 10, 50, 60 },
+    { 20, 30, 70, 85 },
+    { 0, 0, 1.2f, 3.2f } },
 
-  {
-    "FAN",
-    {0, 10, 45, 55},
-    {20, 30, 75, 90},
-    {0, 0, 0.6f, 2.0f}
-  },
+  { "FAN",
+    { 0, 10, 45, 55 },
+    { 20, 30, 75, 90 },
+    { 0, 0, 0.6f, 2.0f } },
 
-  {
-    "CONDENSER",
-    {0, 10, 40, 50},
-    {20, 30, 80, 95},
-    {0, 0, 1.5f, 3.5f}
-  },
+  { "CONDENSER",
+    { 0, 10, 40, 50 },
+    { 20, 30, 80, 95 },
+    { 0, 0, 1.5f, 3.5f } },
 
-  {
-    "HEAT_EXCHANGER",
-    {0, 10, 42, 52},
-    {20, 30, 80, 95},
-    {0, 0, 1.5f, 3.5f}
-  },
+  { "HEAT_EXCHANGER",
+    { 0, 10, 42, 52 },
+    { 20, 30, 80, 95 },
+    { 0, 0, 1.5f, 3.5f } },
 
-  {
-    "AHU",
-    {0, 10, 38, 48},
-    {20, 30, 75, 90},
-    {0, 0, 0.7f, 2.2f}
-  },
+  { "AHU",
+    { 0, 10, 38, 48 },
+    { 20, 30, 75, 90 },
+    { 0, 0, 0.7f, 2.2f } },
 
-  {
-    "CHILLER",
-    {0, 10, 40, 50},
-    {20, 30, 80, 95},
-    {0, 0, 0.9f, 2.6f}
-  }
+  { "CHILLER",
+    { 0, 10, 40, 50 },
+    { 20, 30, 80, 95 },
+    { 0, 0, 0.9f, 2.6f } }
 };
 
 constexpr int PROFILE_COUNT =
-    sizeof(PROFILES) / sizeof(PROFILES[0]);
+  sizeof(PROFILES) / sizeof(PROFILES[0]);
 
 // 0 = Temperature
 // 1 = Humidity
@@ -235,37 +223,29 @@ void loadProfile(int index) {
 
 bool goodLimits(int metric, Limits v) {
 
-  if (!isfinite(v.warningHigh) ||
-      !isfinite(v.criticalHigh)) {
+  if (!isfinite(v.warningHigh) || !isfinite(v.criticalHigh)) {
     return false;
   }
 
   // Vibration uses high limits only.
   if (metric == 2) {
 
-    return v.warningHigh >= 0 &&
-           v.warningHigh < v.criticalHigh &&
-           v.criticalHigh <= 200;
+    return v.warningHigh >= 0 && v.warningHigh < v.criticalHigh && v.criticalHigh <= 200;
   }
 
-  if (!isfinite(v.criticalLow) ||
-      !isfinite(v.warningLow)) {
+  if (!isfinite(v.criticalLow) || !isfinite(v.warningLow)) {
     return false;
   }
 
-  if (!(v.criticalLow < v.warningLow &&
-        v.warningLow < v.warningHigh &&
-        v.warningHigh < v.criticalHigh)) {
+  if (!(v.criticalLow < v.warningLow && v.warningLow < v.warningHigh && v.warningHigh < v.criticalHigh)) {
     return false;
   }
 
   if (metric == 0) {
-    return v.criticalLow >= -40 &&
-           v.criticalHigh <= 80;
+    return v.criticalLow >= -40 && v.criticalHigh <= 80;
   }
 
-  return v.criticalLow >= 0 &&
-         v.criticalHigh <= 100;
+  return v.criticalLow >= 0 && v.criticalHigh <= 100;
 }
 
 // Save the active profile and thresholds in ESP32 memory.
@@ -282,8 +262,7 @@ void saveSettings() {
     prefs.putBytes(
       key,
       &limits[i],
-      sizeof(Limits)
-    );
+      sizeof(Limits));
   }
 }
 
@@ -309,14 +288,7 @@ void restoreSettings() {
     Limits stored;
 
     if (
-      prefs.getBytesLength(key) == sizeof(Limits) &&
-      prefs.getBytes(
-        key,
-        &stored,
-        sizeof(Limits)
-      ) == sizeof(Limits) &&
-      goodLimits(i, stored)
-    ) {
+      prefs.getBytesLength(key) == sizeof(Limits) && prefs.getBytes(key, &stored, sizeof(Limits)) == sizeof(Limits) && goodLimits(i, stored)) {
       limits[i] = stored;
     }
   }
@@ -330,8 +302,7 @@ bool readRegisters(
   uint8_t address,
   uint8_t reg,
   uint8_t *buffer,
-  uint8_t count
-) {
+  uint8_t count) {
 
   Wire.beginTransmission(address);
   Wire.write(reg);
@@ -343,9 +314,8 @@ bool readRegisters(
   if (
     Wire.requestFrom(
       (int)address,
-      (int)count
-    ) != count
-  ) {
+      (int)count)
+    != count) {
     return false;
   }
 
@@ -359,8 +329,7 @@ bool readRegisters(
 bool writeRegister(
   uint8_t address,
   uint8_t reg,
-  uint8_t value
-) {
+  uint8_t value) {
 
   Wire.beginTransmission(address);
   Wire.write(reg);
@@ -375,36 +344,30 @@ void initializeMPU() {
 
   for (
     uint8_t addr :
-    {uint8_t(0x68), uint8_t(0x69)}
-  ) {
+    { uint8_t(0x68), uint8_t(0x69) }) {
 
     uint8_t id;
 
     if (
-      readRegisters(addr, 0x75, &id, 1) &&
-      (id == 0x70 || id == 0x68)
-    ) {
+      readRegisters(addr, 0x75, &id, 1) && (id == 0x70 || id == 0x68)) {
 
       mpuAddress = addr;
 
       mpuReady =
-          writeRegister(addr, 0x6B, 0x00) &&
-          writeRegister(addr, 0x1C, 0x00);
+        writeRegister(addr, 0x6B, 0x00) && writeRegister(addr, 0x1C, 0x00);
 
       Serial.printf(
         "MPU 0x%02X WHO_AM_I=0x%02X ready=%d\n",
         addr,
         id,
-        mpuReady
-      );
+        mpuReady);
 
       return;
     }
   }
 
   Serial.println(
-    "MPU not detected; vibration invalid"
-  );
+    "MPU not detected; vibration invalid");
 }
 
 // ============================================================
@@ -417,12 +380,7 @@ void sampleSensors() {
   float h = dht.readHumidity();
 
   dhtValid =
-      isfinite(t) &&
-      isfinite(h) &&
-      t >= -40 &&
-      t <= 80 &&
-      h >= 0 &&
-      h <= 100;
+    isfinite(t) && isfinite(h) && t >= -40 && t <= 80 && h >= 0 && h <= 100;
 
   temperatureC = dhtValid ? t : NAN;
   humidity = dhtValid ? h : NAN;
@@ -456,9 +414,7 @@ void sampleSensors() {
         mpuAddress,
         0x3B,
         b,
-        6
-      )
-    ) {
+        6)) {
       mpuReady = false;
       return;
     }
@@ -495,7 +451,7 @@ void sampleSensors() {
     float y = ay[i] - my;
     float z = az[i] - mz;
 
-    sq += x*x + y*y + z*z;
+    sq += x * x + y * y + z * z;
   }
 
   vibrationRMS = sqrtf(sq / 16.0f);
@@ -510,20 +466,15 @@ void sampleSensors() {
 Severity classifyOne(
   float value,
   Limits l,
-  bool lowEnabled
-) {
+  bool lowEnabled) {
 
   if (
-    (lowEnabled && value <= l.criticalLow) ||
-    value >= l.criticalHigh
-  ) {
+    (lowEnabled && value <= l.criticalLow) || value >= l.criticalHigh) {
     return CRITICAL;
   }
 
   if (
-    (lowEnabled && value <= l.warningLow) ||
-    value >= l.warningHigh
-  ) {
+    (lowEnabled && value <= l.warningLow) || value >= l.warningHigh) {
     return WARNING;
   }
 
@@ -545,18 +496,14 @@ void updateCondition() {
       classifyOne(
         temperatureC,
         limits[0],
-        true
-      )
-    );
+        true));
 
     next = max(
       next,
       classifyOne(
         humidity,
         limits[1],
-        true
-      )
-    );
+        true));
   }
 
   if (vibrationValid) {
@@ -566,9 +513,7 @@ void updateCondition() {
       classifyOne(
         vibrationRMS,
         limits[2],
-        false
-      )
-    );
+        false));
   }
 
   if (next != severity) {
@@ -579,18 +524,15 @@ void updateCondition() {
 
   digitalWrite(
     PIN_GREEN,
-    severity == NORMAL ? HIGH : LOW
-  );
+    severity == NORMAL ? HIGH : LOW);
 
   digitalWrite(
     PIN_YELLOW,
-    severity == WARNING ? HIGH : LOW
-  );
+    severity == WARNING ? HIGH : LOW);
 
   digitalWrite(
     PIN_RED,
-    severity == CRITICAL ? HIGH : LOW
-  );
+    severity == CRITICAL ? HIGH : LOW);
 }
 
 // ============================================================
@@ -604,9 +546,7 @@ void updateBuzzer() {
   }
 
   if (
-    severity != CRITICAL ||
-    buzzerAcknowledged
-  ) {
+    severity != CRITICAL || buzzerAcknowledged) {
 
     digitalWrite(PIN_BUZZER, LOW);
     return;
@@ -618,8 +558,7 @@ void updateBuzzer() {
 
   digitalWrite(
     PIN_BUZZER,
-    beepOn ? HIGH : LOW
-  );
+    beepOn ? HIGH : LOW);
 }
 
 // ============================================================
@@ -631,9 +570,7 @@ void handleButton() {
   bool current = digitalRead(PIN_BUTTON);
 
   if (
-    current != lastButton &&
-    millis() - lastButtonChange > 50
-  ) {
+    current != lastButton && millis() - lastButtonChange > 50) {
 
     lastButton = current;
     lastButtonChange = millis();
@@ -647,8 +584,7 @@ void handleButton() {
       }
 
       Serial.println(
-        "Alarm acknowledged locally; severity unchanged"
-      );
+        "Alarm acknowledged locally; severity unchanged");
     }
   }
 }
@@ -660,8 +596,7 @@ void handleButton() {
 bool publishJson(
   const char *topic,
   JsonDocument &doc,
-  bool retain = false
-) {
+  bool retain = false) {
 
   if (!mqtt.connected()) {
     return false;
@@ -674,8 +609,7 @@ bool publishJson(
   return mqtt.publish(
     topic,
     data.c_str(),
-    retain
-  );
+    retain);
 }
 
 // Confirmed thresholds and current profile.
@@ -726,9 +660,8 @@ void sendHealthAndState() {
   health["vibration_valid"] = vibrationValid;
 
   health["fault_reason"] =
-    !dhtValid ? "DHT_INVALID" :
-    !vibrationValid ? "MPU_INVALID" :
-    "NONE";
+    !dhtValid ? "DHT_INVALID" : !vibrationValid ? "MPU_INVALID"
+                                                : "NONE";
 
   health["uptime_ms"] = millis();
 
@@ -803,8 +736,7 @@ void sendTelemetry() {
     vibrationValid ? String(vibrationRMS, 3).c_str() : "FAULT",
     severityName(severity),
     PROFILES[profileIndex].name,
-    mqtt.connected()
-  );
+    mqtt.connected());
 }
 
 // ============================================================
@@ -814,8 +746,7 @@ void sendTelemetry() {
 void sendAck(
   const String &id,
   const char *status,
-  const char *reason
-) {
+  const char *reason) {
 
   JsonDocument ack;
 
@@ -830,9 +761,7 @@ void sendAck(
 
 bool numeric(JsonVariantConst value) {
 
-  return value.is<int>() ||
-         value.is<float>() ||
-         value.is<double>();
+  return value.is<int>() || value.is<float>() || value.is<double>();
 }
 
 // ============================================================
@@ -842,14 +771,10 @@ bool numeric(JsonVariantConst value) {
 void handleCommand(
   char *topic,
   byte *data,
-  unsigned int size
-) {
+  unsigned int size) {
 
   if (
-    strcmp(topic, TOPIC_COMMAND) != 0 ||
-    size > 1200 ||
-    size < 10
-  ) {
+    strcmp(topic, TOPIC_COMMAND) != 0 || size > 1200 || size < 10) {
     return;
   }
 
@@ -864,10 +789,7 @@ void handleCommand(
   String action = cmd["action"] | "";
 
   if (
-    device != DEVICE_ID ||
-    id.length() < 8 ||
-    id.length() > 64
-  ) {
+    device != DEVICE_ID || id.length() < 8 || id.length() > 64) {
     return;
   }
 
@@ -877,10 +799,7 @@ void handleCommand(
     char c = id[i];
 
     if (!(
-      isalnum((unsigned char)c) ||
-      c == '-' ||
-      c == '_'
-    )) {
+          isalnum((unsigned char)c) || c == '-' || c == '_')) {
       return;
     }
   }
@@ -892,16 +811,12 @@ void handleCommand(
     cmd["expires_at"] | int64_t(0);
 
   if (
-    now < 1760000000 ||
-    expires < now ||
-    expires > now + 20
-  ) {
+    now < 1760000000 || expires < now || expires > now + 20) {
 
     sendAck(
       id,
       "REJECTED",
-      "EXPIRED_OR_UNSYNCED_CLOCK"
-    );
+      "EXPIRED_OR_UNSYNCED_CLOCK");
 
     return;
   }
@@ -914,8 +829,7 @@ void handleCommand(
       sendAck(
         id,
         "REJECTED",
-        "DUPLICATE_COMMAND"
-      );
+        "DUPLICATE_COMMAND");
 
       return;
     }
@@ -982,21 +896,16 @@ void handleCommand(
     String metric = cmd["metric"] | "";
 
     int i =
-      metric == "temperature" ? 0 :
-      metric == "humidity" ? 1 :
-      metric == "vibration" ? 2 : -1;
+      metric == "temperature" ? 0 : metric == "humidity"  ? 1
+                                  : metric == "vibration" ? 2
+                                                          : -1;
 
     if (i < 0) {
 
       reason = "INVALID_METRIC";
 
     } else if (
-      !numeric(cmd["warning_high"]) ||
-      !numeric(cmd["critical_high"]) ||
-      (i != 2 &&
-        (!numeric(cmd["warning_low"]) ||
-         !numeric(cmd["critical_low"])))
-    ) {
+      !numeric(cmd["warning_high"]) || !numeric(cmd["critical_high"]) || (i != 2 && (!numeric(cmd["warning_low"]) || !numeric(cmd["critical_low"])))) {
 
       reason = "MISSING_OR_INVALID_THRESHOLD";
 
@@ -1051,8 +960,7 @@ void handleCommand(
   sendAck(
     id,
     accepted ? "APPLIED" : "REJECTED",
-    reason
-  );
+    reason);
 }
 
 // ============================================================
@@ -1061,28 +969,40 @@ void handleCommand(
 
 void maintainNetwork() {
 
+  // Keep the Wi-Fi setup portal responsive.
+  wifiManager.process();
+
   unsigned long now = millis();
 
+  // Handle Wi-Fi disconnection.
   if (WiFi.status() != WL_CONNECTED) {
 
+    if (mqtt.connected()) {
+      mqtt.disconnect();
+    }
+
+    // At a new location, offer Wi-Fi setup again.
     if (
-      lastWiFiTry == 0 ||
-      now - lastWiFiTry >= 10000
+      !wifiManager.getConfigPortalActive() &&
+      (lastWiFiTry == 0 || now - lastWiFiTry >= 30000)
     ) {
 
       lastWiFiTry = now;
 
-      Serial.println("[WIFI] Connecting...");
+      Serial.println(
+        "[WIFI] Opening EquipmentMonitor-Setup portal"
+      );
 
-      WiFi.begin(
-        WIFI_SSID,
-        WIFI_PASSWORD
+      wifiManager.startConfigPortal(
+        "EquipmentMonitor-Setup",
+        WIFI_SETUP_AP_PASSWORD
       );
     }
 
     return;
   }
 
+  // Start network time synchronization for TLS validation.
   static bool clockStarted = false;
 
   if (!clockStarted) {
@@ -1097,6 +1017,12 @@ void maintainNetwork() {
     clockStarted = true;
   }
 
+  // Wait until the clock has a valid time.
+  if (time(nullptr) < 1700000000) {
+    return;
+  }
+
+  // Connect securely to the Azure MQTT broker.
   if (!mqtt.connected()) {
 
     if (
@@ -1107,7 +1033,7 @@ void maintainNetwork() {
       lastMQTTTry = now;
 
       Serial.printf(
-        "[MQTT] Connecting to %s:%d\n",
+        "[MQTT TLS] Connecting to %s:%d\n",
         MQTT_SERVER,
         MQTT_PORT
       );
@@ -1136,13 +1062,13 @@ void maintainNetwork() {
         sendHealthAndState();
 
         Serial.println(
-          "[MQTT] Connected and subscribed"
+          "[MQTT TLS] Connected and subscribed"
         );
 
       } else {
 
         Serial.printf(
-          "[MQTT] Retry rc=%d\n",
+          "[MQTT TLS] Retry rc=%d\n",
           mqtt.state()
         );
       }
@@ -1188,23 +1114,34 @@ void setup() {
 
   WiFi.mode(WIFI_STA);
 
+  // Non-blocking Wi-Fi onboarding portal.
+  wifiManager.setConfigPortalBlocking(false);
+  wifiManager.setConnectTimeout(15);
+  wifiManager.setWiFiAutoReconnect(true);
+
+  // Try saved Wi-Fi. If unavailable, open the setup hotspot.
+  wifiManager.autoConnect(
+    "EquipmentMonitor-Setup",
+    WIFI_SETUP_AP_PASSWORD
+  );
+
+  // Verify the Azure MQTT server certificate.
+  wifiClient.setCACert(MQTT_ROOT_CA);
+
   mqtt.setServer(
     MQTT_SERVER,
-    MQTT_PORT
-  );
+    MQTT_PORT);
 
   mqtt.setCallback(handleCommand);
 
   mqtt.setBufferSize(2048);
 
   Serial.println(
-    "Monitor v3: no motor, LCD, IR, or sound sensor"
-  );
+    "Monitor v3: no motor, LCD, IR, or sound sensor");
 
   Serial.printf(
     "Buzzer output enabled: %s\n",
-    BUZZER_ENABLED ? "YES" : "NO"
-  );
+    BUZZER_ENABLED ? "YES" : "NO");
 }
 
 // ============================================================
@@ -1224,9 +1161,7 @@ void loop() {
 
   // Collect sensor measurements every 2.5 seconds.
   if (
-    lastTelemetry == 0 ||
-    now - lastTelemetry >= 2500
-  ) {
+    lastTelemetry == 0 || now - lastTelemetry >= 2500) {
 
     lastTelemetry = now;
 
@@ -1241,9 +1176,7 @@ void loop() {
 
   // Publish online status every 15 seconds.
   if (
-    lastStatus == 0 ||
-    now - lastStatus >= 15000
-  ) {
+    lastStatus == 0 || now - lastStatus >= 15000) {
 
     lastStatus = now;
 
@@ -1252,8 +1185,7 @@ void loop() {
       mqtt.publish(
         TOPIC_STATUS,
         "ONLINE",
-        true
-      );
+        true);
     }
   }
 }

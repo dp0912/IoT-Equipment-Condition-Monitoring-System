@@ -40,3 +40,10 @@ logs/
 *.tmp
 *.swp
 *~
+
+# Azure private certificates and credentials
+cloud-private/
+
+# Local backup and certificate source
+*.pre-azure.bak
+firmware/esp32/equipment_monitor/ca.crt

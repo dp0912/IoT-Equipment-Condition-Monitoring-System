@@ -15,3 +15,5 @@ secrets.hpp
 logs
 docs
 tests
+
+cloud-private/

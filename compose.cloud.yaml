@@ -1,0 +1,48 @@
+services:
+
+  # Secure Azure MQTT broker
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "8883:8883"
+    volumes:
+      - ./docker/mosquitto/mosquitto.cloud.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./cloud-private/mqtt-certs:/mosquitto/certs:ro
+      - ./cloud-private/mqtt-secrets:/mosquitto/secrets:ro
+      - mosquitto_cloud_data:/mosquitto/data
+
+  # Receives ESP32 telemetry and runs ML
+  subscriber:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: python backend/mqtt/subscriber.py
+    env_file:
+      - .env
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+    depends_on:
+      - mosquitto
+
+  # Flask History and Control API
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: python docker/run_api.py
+    env_file:
+      - .env
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+    ports:
+      - "127.0.0.1:5001:5001"
+    depends_on:
+      - mosquitto
+
+volumes:
+  mosquitto_cloud_data:

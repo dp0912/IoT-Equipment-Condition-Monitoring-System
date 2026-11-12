@@ -1,108 +1,96 @@
-# System Architecture — Azure Deployment
+# System Architecture — Current Azure Deployment
 
-## Current implementation
+> **As implemented:** One ESP32 device, a three-service Docker backend on the Azure Ubuntu VM, Azure Table Storage, and one Grafana OSS dashboard on a Mac. No Azure Managed Grafana subscription.
 
-The system uses one ESP32, an Azure Ubuntu VM, Azure Table Storage,
-and one Grafana OSS dashboard running on the Mac.
+![Updated architecture](../images/system-architecture-azure.png)
+
+## End-to-end data and control flow
 
 ```mermaid
-flowchart TD
-    ESP[ESP32 + DHT11 + MPU6050]
-    MQTT[Azure VM - Mosquitto MQTT]
-    SUB[Python Subscriber + Isolation Forest]
-    STORE[Azure Table Storage]
-    API[Flask History and Control API]
-    GRAF[Mac - Grafana OSS]
+flowchart TB
+  subgraph EDGE["ESP32 edge device"]
+    S["DHT11 + MPU6050/6500"] --> E["ESP32 firmware\ncondition rules, LEDs, buzzer\nWiFiManager portal"]
+  end
+  subgraph CLOUD["Azure Ubuntu VM · Docker Compose"]
+    B["Mosquitto 2\nTLS 8883 external\n1883 internal"]
+    P["Python subscriber\nvalidate · 30s aggregate\nIsolation Forest · email"]
+    A["Flask + Waitress API\nhistory · operator session\nMQTT control bridge"]
+    B -->|"telemetry, status"| P
+    A -->|"command topics"| B
+    B -->|"acks / config / state"| A
+  end
+  T[("Azure Table Storage\nSUMMARY + EVENT")]
+  G["Grafana OSS on Mac\none dashboard\nlive + history + controls"]
+  MAIL["SMTP email notifications"]
 
-    ESP -->|MQTT over TLS - 8883| MQTT
-    MQTT --> SUB
-    SUB --> STORE
-    STORE --> API
-    MQTT -->|MQTT over TLS - 8883| GRAF
-    API <-->|SSH tunnel - localhost:5001| GRAF
-    API -->|Authenticated commands| MQTT
-    MQTT --> ESP
+  E -->|"Wi-Fi · MQTT TLS 8883"| B
+  B -->|"remote live MQTT TLS"| G
+  P -->|"summaries + events"| T
+  P -->|"ML / alerts / connectivity topics"| B
+  P --> MAIL
+  T -->|"history queries"| A
+  G <-->|"SSH port forwarding 127.0.0.1:5001"| A
+  B -->|"commands"| E
 ```
 
-## ESP32
+## 1. Device / edge layer
 
-- Temperature and humidity: DHT11, GPIO27
-- Vibration: MPU6050/MPU6500, GPIO21 and GPIO22
-- Condition classification: NORMAL, WARNING, CRITICAL
-- Local indicators: three LEDs and a buzzer
-- Physical alarm acknowledgement: GPIO13
-- Equipment profiles: eight selectable monitoring profiles
+- **ESP32-WROOM-32**, running `firmware/esp32/equipment_monitor/equipment_monitor.ino`.
+- **DHT11** at GPIO27 provides ambient temperature and relative humidity; **MPU6050/MPU6500** on I²C GPIO21/22 provides an acceleration-derived vibration RMS estimate.
+- Uses configurable limits for the selected one of eight monitoring profiles (`MOTOR`, `PUMP`, `COMPRESSOR`, `FAN`, `CONDENSER`, `HEAT_EXCHANGER`, `AHU`, `CHILLER`). Outputs `NORMAL`, `WARNING`, or `CRITICAL` separately from ML results.
+- Local LEDs indicate condition; buzzer and physical button provide audible critical alert acknowledgement. No industrial equipment is directly controlled.
+- Samples and publishes every ~2.5 seconds; status is republished around every 15 seconds. Stores settings with ESP32 Preferences.
+- **WiFiManager** offers `EquipmentMonitor-Setup` at `http://192.168.4.1`. Entering `W` in Serial Monitor manually opens the portal; switching to another network replaces the active saved network rather than implementing automatic multi-network roaming.
 
-WiFiManager handles Wi-Fi onboarding.
+## 2. Secure MQTT communication
 
-The ESP32 creates `EquipmentMonitor-Setup` when its saved Wi-Fi
-is unavailable. The operator can also enter `W` in Arduino
-Serial Monitor to open the setup portal manually.
+| Path | Protocol | Exposure |
+|---|---|---|
+| ESP32 → Azure Mosquitto | MQTT over TLS, TCP 8883 | Remote internet client, authenticated |
+| Mac Grafana → Azure Mosquitto | MQTT over TLS, TCP 8883 | Remote internet client, authenticated |
+| Python subscriber/API ↔ Mosquitto | MQTT TCP 1883 | Private Docker network only |
 
-The portal is accessible at `http://192.168.4.1` while the
-computer is connected to `EquipmentMonitor-Setup`.
+Broker hostname: `iot-monitor-dp0912.northcentralus.cloudapp.azure.com`. The ESP32 and Grafana verify the self-managed server certificate through the trusted root CA. The server private key and password file remain on the Azure VM in `cloud-private/`.
 
-The ESP32 has been configured on both a home Wi-Fi network and
-an iPhone hotspot. This is manual network reconfiguration,
-not automatic roaming across multiple saved networks.
+Important topic paths under `equipment/ESP32-001/`: `telemetry`, `status`, `sensor_health`, `config`, `control_status`, `commands`, `command_ack`, `alerts`, `connectivity`, and `ml`.
 
-## Azure Ubuntu VM
+## 3. Azure processing and ML
 
-Docker Compose runs three services:
+The active `compose.cloud.yaml` runs three services with `restart: unless-stopped`:
 
-| Service | Responsibility |
-|---|---|
-| mosquitto | Authenticated MQTT broker |
-| subscriber | Telemetry, 30-second summaries, ML, email, Azure writes |
-| api | History retrieval and authenticated remote controls |
+- **`mosquitto`:** TLS listener, private internal listener, authentication, persistent broker volume.
+- **`subscriber`:** MQTT validation, sensor-health and condition-change events, 30-second aggregates, Azure Table writes and retry queue, Isolation Forest inference, connectivity checks and SMTP email worker. Model predictions skip windows containing fault samples.
+- **`api`:** Waitress-serving Flask history routes and authenticated operator endpoints; sends device commands via MQTT and processes acknowledgements.
 
-Deployment file: `compose.cloud.yaml`.
+The rule-based ESP32 condition and ML anomaly prediction are **two separate classifications**. ML prediction fields include `status` (`NORMAL`/`ANOMALY`) and `anomaly_score`.
 
-Mosquitto uses TCP 8883 with TLS for remote MQTT clients.
-TCP 1883 is used inside Docker and is not publicly published.
+## 4. Azure storage and API
 
-The Flask API is bound to `127.0.0.1:5001` on the VM.
+Azure Table Storage persists two kinds of rows:
 
-## Azure Storage
+- `SUMMARY`: 30-second sensor statistics and sample/condition metadata.
+- `EVENT`: condition transitions and sensor fault/recovery events.
 
-Azure Table Storage stores SUMMARY and EVENT records.
+The API exposes `/api/history/summary`, `/api/history/events`, `/api/health`, `/api/session`, `/api/config`, `/api/profile`, `/api/alarm/ack`, `/api/control/status`, `/api/audit`, and `/api/config/refresh` with HTTP methods and authorization determined by the routes.
 
-The Flask API retrieves stored information for Grafana
-historical graphs and event tables.
+The API binds to **`127.0.0.1:5001` on the Azure VM**, not to a public internet-facing port.
 
-## Mac Grafana
+## 5. Grafana on the Mac
 
-Grafana OSS runs locally at `http://localhost:3000`.
+**One Grafana OSS dashboard** is available at `http://localhost:3000` when the Homebrew service is running.
 
-One dashboard contains:
-- Live temperature, humidity, vibration and equipment status
-- MQTT connectivity, sensor health and ML anomaly information
-- Azure historical trends and alerts
-- Operator authentication, profiles and thresholds
+- **Live data:** `grafana-mqtt-datasource` connects to Azure MQTT over TLS.
+- **Historical data:** `Azure-Historical-Data` (Infinity) requests records through the local SSH tunnel to the Azure Flask API.
+- **Controls:** dashboard operator forms use the same API tunnel and a separate authenticated session to update thresholds, select a monitoring profile and acknowledge the buzzer.
+- **Time range behavior:** Grafana uses one dashboard-wide time range; zooming into old history can make live MQTT panels appear empty until returning to a recent relative range.
 
-The MQTT data source connects directly to the Azure broker
-using TLS and the trusted private-CA certificate.
+The Mac may be on a different Wi-Fi network from the ESP32. The device communicates with Azure independently of the Mac; only local Grafana viewing and tunneled API control require the Mac.
 
-The Infinity data source accesses the Flask API over an
-SSH local-port-forwarding tunnel.
+## 6. Alerts, security, and deployment
 
-Historical zooming changes the dashboard-wide time range.
-Live panels may show No data while older dates are selected.
+- MQTT live alerts and connectivity state are visible on Grafana; SMTP email notifications cover configured condition and connectivity events. **SMS is not implemented.**
+- Private files: `.env`, `firmware/esp32/equipment_monitor/secrets.h`, `cloud-private/`, certificate signing/server keys, and the Mosquitto password file. Do not commit any of them.
+- Grafana OSS software is free; Azure VM/storage usage may incur charges.
+- Full operating procedure and commands: [Operations guide](../guides/02_OPERATIONS_GUIDE.md) and [README quick start](../../README.md#-run-the-existing-deployment).
 
-## Notifications
-
-SMTP email notifications support equipment condition changes,
-recovery, offline and online events.
-
-SMS notifications are planned, not implemented.
-
-## Security
-
-Private MQTT passwords, Azure credentials, server certificate
-private keys and operator secrets remain outside Git.
-
-Grafana and the Flask API are not exposed as public web
-services in the current deployment.
-
-This is an educational IoT prototype, not a certified
-industrial protection or machine-control system.
+**Limitation:** Educational monitoring prototype; no calibrated industrial-grade fault diagnosis or certified machinery protection.
